@@ -22,5 +22,5 @@ MainWindow::~MainWindow()
 
 void MainWindow::do_actionAbout()
 {
-  QMessageBox::information(this, "About", "Author: Chaoya Li\nEmail: harry75369@gmail.com\nDate: July 2014");
+  QMessageBox::information(this, "About", "Author: Chaoya Li\nEmail: harry75369@gmail.com\nDate: July 2014\nQt version: " QT_VERSION_STR);
 }
