@@ -5,10 +5,16 @@ CONFIG += debug
 LIB_DIR      = ../lib
 BUILD_DIR    = ../build
 
-SOURCES     += $${LIB_DIR}/glew.c MainWindow.cpp GLWidget.cpp main.cpp
-HEADERS     += MainWindow.hpp GLWidget.hpp
-FORMS       += MainWindow.ui
-RESOURCES   += MainWindow.qrc
+SOURCES     += $${LIB_DIR}/glew.c \
+               gui/MainWindow.cpp \
+               gui/GLWidget.cpp \
+               prim/DiffusionCurve.cpp \
+               libfmm/FastMultipole.cpp \
+               main.cpp
+HEADERS     += gui/MainWindow.hpp \
+               gui/GLWidget.hpp
+FORMS       += gui/MainWindow.ui
+RESOURCES   += gui/MainWindow.qrc
 
 INCLUDEPATH += $${LIB_DIR} $${BUILD_DIR}/DiffusionCurves
 OBJECTS_DIR  = $${BUILD_DIR}/DiffusionCurves

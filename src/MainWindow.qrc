@@ -1,6 +1,0 @@
-<RCC>
-  <qresource prefix="Icon">
-    <file>../res/quit.png</file>
-    <file>../res/about.png</file>
-  </qresource>
-</RCC>
