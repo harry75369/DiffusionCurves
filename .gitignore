@@ -1,3 +1,5 @@
 .ycm_extra_conf.pyc
 Makefile
 build
+*.swp
+python/*.png
