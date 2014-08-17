@@ -109,16 +109,89 @@ class Canvas:
     self.img.transpose(Image.FLIP_TOP_BOTTOM).save(filename)
 
   def draw(self, curves):
-    rgb = [Image.new("L", (self.width, self.height), 255),
-           Image.new("L", (self.width, self.height), 255),
-           Image.new("L", (self.width, self.height), 255)]
-    for c in curves.curves:
+
+    def img2mat(img):
+      mat = np.zeros(img.size)
+      w, h = img.size
+      for i in range(w):
+        for j in range(h):
+          mat[i][j] = img.getpixel((i,j)) / 255.0
+      return mat
+
+    def mat2img(mat):
+      img = Image.new("L", mat.shape, 0)
+      w, h = mat.shape
+      for i in range(w):
+        for j in range(h):
+          img.putpixel((i,j), max(0, min(255, 255*mat[i][j])))
+      return img
+
+    def ddx(mat):
+      ret = np.zeros(mat.shape)
+      w, h = mat.shape
+      for j in range(h):
+        ret[0][j] = mat[1][j] - mat[0][j]
+        for i in range(1,w-1):
+          ret[i][j] = (mat[i+1][j]-mat[i-1][j])/2
+        ret[w-1][j] = mat[w-1][j] - mat[w-2][j]
+      return ret
+
+    def ddy(mat):
+      ret = np.zeros(mat.shape)
+      w, h = mat.shape
+      for i in range(w):
+        ret[i][0] = mat[i][1] - mat[i][0]
+        for j in range(1,h-1):
+          ret[i][j] = (mat[i][j+1]-mat[i][j-1])/2
+        ret[i][h-1] = mat[i][h-1] - mat[i][h-2]
+      return ret
+
+    rgb = [Image.new("L", (self.width, self.height), 0),
+           Image.new("L", (self.width, self.height), 0),
+           Image.new("L", (self.width, self.height), 0)]
+    for c in curves.curves: # init boundary condition
       curve_points = c.get_curve_points(self.width, self.height, 40)
       lcolors = c.get_colors("L", curve_points)
       rcolors = c.get_colors("R", curve_points)
       for i in range(3):
         Canvas.interpolate_colored_curve(rgb[i], curve_points, lcolors[i], False)
         Canvas.interpolate_colored_curve(rgb[i], curve_points, rcolors[i], True)
+    n = self.width * self.height
+    index = lambda x, y: x*self.height+y
+    inrange = lambda x, y: x>=0 and x<self.width and y>=0 and y<self.height
+    dirs = [(-1,0),(1,0),(0,-1),(0,1)]
+    for c in range(3): # solve poisson equation in each component
+      print "doing component %d" % c
+      mat = img2mat(rgb[c])
+      nabla_x = ddx(mat)
+      nabla_y = ddy(mat)
+      laplace_x = ddx(nabla_x)
+      laplace_y = ddy(nabla_y)
+      A = np.zeros((n, n))
+      b = np.zeros((n, 1))
+      for i in range(self.width):
+        for j in range(self.height):
+          idx = index(i, j)
+          b[idx] = laplace_x[i][j] + laplace_y[i][j]
+          if mat[i][j] < 1e-5: # if pixel(i,j) is unknown
+            A[idx][idx] = -4
+            for dx, dy in dirs:
+              if inrange(i+dx, j+dy):
+                if mat[i+dx][j+dy] < 1e-5: # if this pixel is not boundary
+                  idx2 = index(i+dx, j+dy)
+                  A[idx][idx2] = 1
+                else:
+                  b[idx] = b[idx] - mat[i+dx][j+dy]
+          else:
+            A[idx][idx] = 1
+            b[idx] = mat[i][j]
+      print "building done"
+      x = np.linalg.solve(A, b)
+      print "solving done"
+      for i in range(self.width):
+        for j in range(self.height):
+          mat[i][j] = x[index(i,j)]
+      rgb[c] = mat2img(mat)
     self.img = Image.merge("RGB", rgb)
 
   @classmethod
@@ -181,7 +254,8 @@ if __name__ == "__main__":
     sys.exit(0)
 
   curves = DiffusionCurves(sys.argv[1])
-  canvas = Canvas(400, 300)
+  #canvas = Canvas(180, 135)
+  canvas = Canvas(100, 75)
   canvas.draw(curves)
   canvas.show()
   canvas.save(sys.argv[1]+".png")
