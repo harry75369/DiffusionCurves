@@ -109,24 +109,22 @@ class Canvas:
     self.img.transpose(Image.FLIP_TOP_BOTTOM).save(filename)
 
   def draw(self, curves):
-    #for c in curves.curves:
-      #self.imgdraw.line(c.get_control_points(self.width, self.height), Canvas.green)
-      #self.imgdraw.line(c.get_curve_points(self.width, self.height, 500), Canvas.red)
-    r = Image.new("L", (self.width, self.height), 255)
-    g = Image.new("L", (self.width, self.height), 255)
-    b = Image.new("L", (self.width, self.height), 255)
+    rgb = [Image.new("L", (self.width, self.height), 255),
+           Image.new("L", (self.width, self.height), 255),
+           Image.new("L", (self.width, self.height), 255)]
     for c in curves.curves:
-      curve_points = c.get_curve_points(self.width, self.height, 300)
-      colors = c.get_colors("L", curve_points)
-      Canvas.interpolate_colored_curve(r, curve_points, colors[0])
-      Canvas.interpolate_colored_curve(g, curve_points, colors[1])
-      Canvas.interpolate_colored_curve(b, curve_points, colors[2])
-    self.img = Image.merge("RGB", [r,g,b])
+      curve_points = c.get_curve_points(self.width, self.height, 40)
+      lcolors = c.get_colors("L", curve_points)
+      rcolors = c.get_colors("R", curve_points)
+      for i in range(3):
+        Canvas.interpolate_colored_curve(rgb[i], curve_points, lcolors[i], False)
+        Canvas.interpolate_colored_curve(rgb[i], curve_points, rcolors[i], True)
+    self.img = Image.merge("RGB", rgb)
 
   @classmethod
-  def interpolate_colored_curve(cls, img, cps, color):
+  def interpolate_colored_curve(cls, img, cps, color, offset):
 
-    def bresenham(img, x1, y1, x2, y2, c1, c2):
+    def bresenham(img, x1, y1, x2, y2, c1, c2, offset_flag):
       w = img.size[0]
       h = img.size[1]
       x = x1
@@ -140,12 +138,19 @@ class Canvas:
         e = 2 * dy - dx
       else:
         e = 2 * dx - dy
+      if dx > dy:
+        offset = (0,-1) if x2>x1 else (0,1)
+      else:
+        offset = (1,0) if y2>y1 else (-1,0)
+      if not offset_flag:
+        offset = (0,0)
       length = int(max(dx, dy))
       dc = (c2-c1) / length
       for i in range(length+1):
-        ix = max(0, min(w-1, int(x)))
-        iy = max(0, min(h-1, int(y)))
-        img.putpixel((ix,iy), max(0, min(255, int((i*dc+c1)*255))))
+        ix = int(x)+offset[0]
+        iy = int(y)+offset[1]
+        if ix >= 0 and ix < w and iy >= 0 and iy < h:
+          img.putpixel((ix,iy), max(0, min(255, int((i*dc+c1)*255))))
         while e > 0:
           if dx > dy:
             y = y + sy
@@ -168,7 +173,7 @@ class Canvas:
       p1_y = cps[i+1][1]
       c0 = color[i]
       c1 = color[i+1]
-      bresenham(img, p0_x, p0_y, p1_x, p1_y, c0, c1)
+      bresenham(img, p0_x, p0_y, p1_x, p1_y, c0, c1, offset)
 
 if __name__ == "__main__":
   if len(sys.argv) != 2:
@@ -180,4 +185,3 @@ if __name__ == "__main__":
   canvas.draw(curves)
   canvas.show()
   canvas.save(sys.argv[1]+".png")
-
