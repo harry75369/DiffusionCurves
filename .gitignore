@@ -3,3 +3,4 @@ Makefile
 build
 *.swp
 python/*.png
+diffusioncurves
