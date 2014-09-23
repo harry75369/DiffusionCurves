@@ -4,3 +4,4 @@ build
 *.swp
 python/*.png
 diffusioncurves
+!haskell/Makefile
