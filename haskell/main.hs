@@ -1,6 +1,11 @@
 import Text.Parsec hiding (spaces)
 import qualified Text.Parsec.Token as T
 import Text.Parsec.Language (haskellDef)
+import Data.Functor
+import Diagrams.Prelude hiding (Color, Time, render)
+import Diagrams.Backend.SVG
+
+-- Parser elements
 
 lexer    = T.makeTokenParser haskellDef
 lexeme   = T.lexeme lexer
@@ -26,6 +31,7 @@ braces   = T.braces lexer   -- {}
 brackets = T.brackets lexer -- <>
 squares  = T.squares lexer  -- []
 
+-- Data structures
 
 data VecFile = VecFile { version :: Double, scene :: Scene } deriving (Show)
 data Scene = Scene { sceneObjects :: SceneObjects } deriving (Show)
@@ -41,6 +47,7 @@ data Geometry = LinearSpline { numVertices :: Integer, vertices :: [Vertex] } de
 data Vertex = Vertex Double Double Double deriving (Show)
 data Cycle = Cycle Integer [(Integer, Integer)] deriving (Show)
 
+-- Parser definitions
 
 p_vecfile = do
   spaces
@@ -142,8 +149,54 @@ p_halfedges = do
       dir <- comma >> integer
       return (id, dir)
 
+-- Algorithms
+
+findVertex id [] = Nothing
+findVertex id (x:xs) = if match id x then Just x else findVertex id xs where
+  match id (InstantVertex tid _ _ _ _ _)
+    | id == tid = True
+    | otherwise = False
+  match id _ = False
+
+findEdge id [] = Nothing
+findEdge id (x:xs) = if match id x then Just x else findEdge id xs where
+  match id (InstantEdge tid _ _ _ _ _)
+    | id == tid = True
+    | otherwise = False
+  match id _ = False
+
+findFace id [] = Nothing
+findFace id (x:xs) = if match id x then Just x else findFace id xs where
+  match id (InstantFace tid _ _ _)
+    | id == tid = True
+    | otherwise = False
+  match id _ = False
+
+render r = do
+  let bc = backgroundColor . sceneObjects . scene $ r
+      cs = cells . sceneObjects . scene $ r
+      vs = filter isVertex cs where
+        isVertex (InstantVertex _ _ _ _ _ _) = True
+        isVertex _ = False
+      es = filter isEdge cs where
+        isEdge (InstantEdge _ _ _ _ _ _) = True
+        isEdge _ = False
+      fs = filter isFace cs where
+        isFace (InstantFace _ _ _ _) = True
+        isFace _ = False
+  {-print vs >> print es >> print fs-}
+  case vertices . geometry <$> findEdge 0 es of
+    Nothing -> return ()
+    Just vs -> do
+      let toP2 (Vertex x y w) = p2 (x,y)
+      let s = reflectY . stroke . cubicSpline True $ map toP2 vs
+      renderSVG "main.svg" (Width 400) s
+
+-- Entrance
+
 main = do
   c <- getContents
   case parse p_vecfile "error" c of
     Left e -> putStrLn "Error parsing input:" >> print e
-    Right r -> print r
+    Right r -> render r
+
