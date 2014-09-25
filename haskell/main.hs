@@ -4,6 +4,7 @@ import Text.Parsec.Language (haskellDef)
 import Data.Functor
 import Diagrams.Prelude hiding (Color, Time, render)
 import Diagrams.Backend.SVG
+import Data.Colour.SRGB
 
 -- Parser elements
 
@@ -185,12 +186,14 @@ render r = do
         isFace (InstantFace _ _ _ _) = True
         isFace _ = False
   {-print vs >> print es >> print fs-}
+  let toColour (Color r g b a) = sRGB r g b
+  let Just facecolor = toColour . color <$> findFace 1 fs
   case vertices . geometry <$> findEdge 0 es of
     Nothing -> return ()
     Just vs -> do
       let toP2 (Vertex x y w) = p2 (x,y)
       let s = reflectY . stroke . cubicSpline True $ map toP2 vs
-      renderSVG "main.svg" (Width 400) s
+      renderSVG "main.svg" (Width 400) (s # fc facecolor # bg (toColour bc))
 
 -- Entrance
 
