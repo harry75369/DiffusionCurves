@@ -1,13 +1,10 @@
-all: main
+all: gui
 
-main: main.hs
-	ghc --make main
-
-csv: csv.hs
-	ghc --make csv
+gui: Viewer.hs
+	ghc --make Viewer
 
 clean:
-	rm -rf *.hi *.o main.svg main.png main.pdf
+	rm -rf *.hi *.o
 
 cleanall: clean
-	rm -rf main csv
+	rm -rf Viewer

@@ -3,7 +3,7 @@ import qualified Text.Parsec.Token as T
 import Text.Parsec.Language (haskellDef)
 import Data.Functor
 import Diagrams.Prelude hiding (Color, Time, render)
-import Diagrams.Backend.Rasterific
+import Diagrams.Backend.SVG
 import Data.Colour.SRGB
 
 -- Parser elements
@@ -184,11 +184,10 @@ findFace id (x:xs) = if match id x then Just x else findFace id xs where
   match id _ = False
 
 toColour (Color r g b a) = sRGB r g b
-
-toP2 (Vertex x y w) = p2 (x,y)
-
+vertexToP2 (Vertex x y w) = p2 (x,y)
+positionToP2 (Position x y) = p2 (x,y)
 toWeight (Vertex x y w) = w
-
+{-
 extractFromHalfedges :: [Cell] -> [(Integer,Integer)] -> [[P2]]
 extractFromHalfedges edges [] = []
 extractFromHalfedges edges ((edge_id,edge_dir):xs) =
@@ -238,12 +237,36 @@ render r = do
   let result = r3 # bg (toColour bc)
   {-write output-}
   renderRasterific "main.png" (Width 200) 100 (r1 # (pad 1.5 . center))
+-}
+render2 r = do
+  let bc = m_backgroundColor . m_sceneObjects . m_scene $ r
+      cs = m_cells . m_sceneObjects . m_scene $ r
+      result = (foldl mappend mempty (map (drawCell cs) cs)) # center # pad 1.2 # reflectY # bg (toColour bc)
+   in renderSVG "main.svg" (Width 400) result
 
-{-render2 r = do-}
-  {-let bc = m_backgroundColor . m_sceneObject . m_scene $ r-}
-      {-cs = m_cells . m_sceneObjects . m_scene $ r-}
-      {-result = (foldl mappend mempty $ map drawCell cs) # bg (toColour bc)-}
-   {-in renderRasterific "main.png" (Width 400) 100 result-}
+drawCell :: [Cell] -> Cell -> Diagram B R2
+drawCell cells (InstantVertex vid color time pos size tangentEdges) =
+  (circle ((fromIntegral size)/2) `at` (positionToP2 pos)) # strokeLocTrail # fc (toColour color) # lw none
+drawCell cells (InstantEdge eid color time leftVertex rightVertex geometry) =
+  let LinearSpline numVertices vertices = geometry
+      positions = map vertexToP2 vertices
+      weights = map toWeight vertices
+      average_weight = sum weights / (fromIntegral $ length weights) {- TODO: weight-varying edge -}
+   in (fromVertices positions # closeLine) # strokeLoop # lwG average_weight # lc (toColour color) # fc yellow
+drawCell cells (InstantFace fid color time cycles) =
+  let fromHalfedges [] = []
+      fromHalfedges ((edge_id,edge_dir):xs) =
+        case (findEdge edge_id cells) of
+          Nothing -> fromHalfedges xs
+          Just (InstantEdge _ _ _ l r g) -> let dirf = (if edge_dir == 1 then id else reverse)
+                                                vertices = dirf . m_vertices $ g
+                                                closed = (l == r)
+                                             in (closed, map vertexToP2 vertices) : (fromHalfedges xs)
+      fromCycles [] = []
+      fromCycles ((Cycle cycle_dir halfedges):xs) =
+        let vertices = concat $ map snd (fromHalfedges halfedges) {- TODO: proper edge concating -}
+         in (fromVertices vertices # closeLine # strokeLoop) : (fromCycles xs)
+   in (foldl mappend mempty $ fromCycles cycles) # fc (toColour color) # fillRule EvenOdd # lw none
 
 -- Entrance
 
@@ -251,5 +274,5 @@ main = do
   c <- getContents
   case parse p_vecfile "error" c of
     Left e -> putStrLn "Error parsing input:" >> print e
-    Right r -> render r
+    Right r -> render2 r
 
