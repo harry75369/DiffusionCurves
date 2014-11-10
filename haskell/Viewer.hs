@@ -4,7 +4,6 @@ module Main (main) where
 
 import           Graphics.Rendering.OpenGL.Raw
 import           Graphics.Rendering.GLU.Raw
-import           Graphics.Rendering.OpenGL as GL
 import qualified Graphics.UI.GLFW as GLFW
 
 import Data.Bits
@@ -87,6 +86,7 @@ printInformation win = do
   renderer <- glGetString gl_RENDERER >>= return.castPtr >>= peekCString
   {-exts     <- glGetString gl_EXTENSIONS >>= return.castPtr >>= peekCString-}
   samples  <- alloca $ \samples_ptr -> poke samples_ptr 0 >> glGetIntegerv gl_SAMPLES samples_ptr >> peek samples_ptr
+  stencil_bits <- alloca $ \ptr -> poke ptr 0 >> glGetIntegerv gl_STENCIL_BITS ptr >> peek ptr
 
   putStrLn $ Pretty.render $ Pretty.nest 0 (
     Pretty.text "------------------------------------------------------------" $+$
@@ -94,7 +94,8 @@ printInformation win = do
     Pretty.text "Version:"    <+> Pretty.text version  $+$
     Pretty.text "Renderer:"   <+> Pretty.text renderer $+$
     {-Pretty.text "Extensions:" <+> Pretty.text exts     $+$-}
-    Pretty.text "Samples:"    <+> (Pretty.text . show) samples
+    Pretty.text "Samples:"    <+> (Pretty.text . show) samples $+$
+    Pretty.text "Stencil Bits:"    <+> (Pretty.text . show) stencil_bits
     )
 
 checkExtensions :: GLFW.Window -> IO ()
