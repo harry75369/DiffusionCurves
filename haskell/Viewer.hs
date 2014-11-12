@@ -85,8 +85,9 @@ printInformation win = do
   version  <- glGetString gl_VERSION >>= return.castPtr >>= peekCString
   renderer <- glGetString gl_RENDERER >>= return.castPtr >>= peekCString
   {-exts     <- glGetString gl_EXTENSIONS >>= return.castPtr >>= peekCString-}
-  samples  <- alloca $ \samples_ptr -> poke samples_ptr 0 >> glGetIntegerv gl_SAMPLES samples_ptr >> peek samples_ptr
-  stencil_bits <- alloca $ \ptr -> poke ptr 0 >> glGetIntegerv gl_STENCIL_BITS ptr >> peek ptr
+  samples      <- getInteger gl_SAMPLES
+  stencil_bits <- getInteger gl_STENCIL_BITS
+  texture_size <- getInteger gl_MAX_TEXTURE_SIZE
 
   putStrLn $ Pretty.render $ Pretty.nest 0 (
     Pretty.text "------------------------------------------------------------" $+$
@@ -94,9 +95,13 @@ printInformation win = do
     Pretty.text "Version:"    <+> Pretty.text version  $+$
     Pretty.text "Renderer:"   <+> Pretty.text renderer $+$
     {-Pretty.text "Extensions:" <+> Pretty.text exts     $+$-}
-    Pretty.text "Samples:"    <+> (Pretty.text . show) samples $+$
-    Pretty.text "Stencil Bits:"    <+> (Pretty.text . show) stencil_bits
+    Pretty.text "Samples:"      <+> (Pretty.text . show) samples $+$
+    Pretty.text "Stencil Bits:" <+> (Pretty.text . show) stencil_bits $+$
+    Pretty.text "Texture Size:" <+> (Pretty.text . show) texture_size
     )
+
+  where
+    getInteger x = alloca $ \ptr -> poke ptr 0 >> glGetIntegerv x ptr >> peek ptr
 
 checkExtensions :: GLFW.Window -> IO ()
 checkExtensions win = do
