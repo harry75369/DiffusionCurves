@@ -37,7 +37,7 @@ p_dvgfile = E.brackets . P.many . E.braces $ do
   blur    <- E.comma >> E.lexstr "blur" >> E.colon >> p_blur
   return $ DiffusionCurve id control lcolor rcolor blur
 
-readDvgfile :: FilePath -> IO [DiffusionCurve]
+readDvgfile :: FilePath -> IO [Curve]
 readDvgfile path = readFile path >>= deal . P.parse p_dvgfile "error" where
   deal (Left err) = print err >> return []
   deal (Right ds) = return ds
