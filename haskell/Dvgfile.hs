@@ -6,8 +6,10 @@ where
 ------------------------------------------------------------
 
 import qualified Text.Parsec as P
-import qualified ParserElem as E
+import qualified ParserElem  as E
 import Curves
+
+------------------------------------------------------------
 
 p_tuple = E.parens values where
   values = do

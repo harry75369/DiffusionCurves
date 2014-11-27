@@ -5,17 +5,33 @@ where
 
 ------------------------------------------------------------
 
-import Prelude as P
-import Curves
-import Control.Monad (forM_)
+import Prelude                       as P
 import Numeric.LinearAlgebra.HMatrix as H
+import Control.Monad
+import Data.Complex
+import Curves
+import Image
 
 -- for main
 import Dvgfile (readDvgfile)
 
+-- for test
+import Test.QuickCheck
+
 ------------------------------------------------------------
 
+data Cell = Cell {
+    m_width    :: Int
+  , m_height   :: Int
+  , m_pos      :: Complex Double
+  , m_moments  :: Complex Double
+  , m_loccoef  :: Complex Double
+  , m_children :: [Cell]
+  } deriving (Show)
+
 type V2 = (Double, Double)
+
+------------------------------------------------------------
 
 (@-@) :: V2 -> V2 -> V2
 (@-@) (x1,y1) (x2,y2) = (x1-x2,y1-y2)
@@ -26,9 +42,6 @@ dist (x1,y1) (x2,y2) =
       y = y1 - y2
    in sqrt $ x*x + y*y
 
-area :: V2 -> V2 -> V2 -> Double
-area (x1,y1) (x2,y2) (x3,y3) = (*0.5) . abs $ (x1-x3)*(y2-y1)-(x1-x2)*(y3-y1)
-
 prod :: V2 -> V2 -> Double
 prod (x1,y1) (x2,y2) = x1*x2 + y1*y2
 
@@ -37,24 +50,54 @@ normalize (0,0) = (0,0)
 normalize (x,y) = (x/len, y/len)
   where len = sqrt $ x*x + y*y
 
-range :: Int -> [Int]
-range n = [0..n-1]
+factorial n = product [1..n]
 
-------------------------------------------------------------
+{-funcS :: Int -> Complex Double -> Complex Double-}
+{-funcS 0 z = - log z-}
+{-funcS k z = factorial (k-1) / z ^ k-}
 
--- T. Sun, P. Thamjaroenporn, and C. Zheng, "Fast Multipole Representation
--- of Diffusion Curves and Points", ACM Trans. Graph. SIGGRAPH 2014
+{-funcR :: Int -> Complex Double -> Complex Double-}
+{-funcR k z = (- z ^ k) / factorial k-}
+
+{-funcM_term :: Int -> Complex Double -> (Complex Double -> Complex Double -> Complex Double -> Complex Double)-}
+{-funcM_term k zc = (\vE vDs z0 -> vE * funcR k (z0 - zc) * vDs)-}
+
+{-funcN_term :: Int -> Complex Double -> (Complex Double -> Complex Double -> Complex Double -> Complex Double)-}
+{-funcN_term k zc = (\vC vN vDs z0 -> vC * vN * funcR (k-1) (z0 - zc) * vDs)-}
+
+nearestPower :: Int -> Int
+nearestPower x
+  | x < 2     = x
+  | otherwise = (2^) . (+1) . truncate . (logBase 2) . fromIntegral $ x-1
+
+--------------------------------------------------------------------------------
+--
+-- T. Sun, P. Thamjaroenporn, and C. Zheng, "Fast Multipole Representation of 
+-- Diffusion Curves and Points", ACM Trans. Graph. SIGGRAPH 2014
+--
+--------------------------------------------------------------------------------
+
 solve :: [Curve] -> Int -> Int -> IO ()
-solve ds w h = do
-  let dx = 8 -- pixels width a cell
-      dy = 8 -- pixels height a cell
-      nx = (ceiling $ fromIntegral w / dx) :: Int
-      ny = (ceiling $ fromIntegral h / dy) :: Int
-      grid = (nx><ny) $ replicate (nx*ny) 0.0
-      nSegs = 10 :: Int
+solve ds width height = do
+  let nx = (nearestPower width) :: Int
+      ny = (nearestPower height) :: Int
+      maxLevel = (truncate.(logBase 2) $ min nx ny) :: Int
+      cellWidth  = (fromIntegral width  / fromIntegral nx) :: Double
+      cellHeight = (fromIntegral height / fromIntegral ny) :: Double
+      k = 4 :: Int
 
-  disp 2 grid
+  -- At the finest level (maxLevel), discretize each diffusion curve into 
+  -- segments so that every segment is wholy contained in a cell.
+  --
+  -- For each segment, calculate the missing info, e.g. boundary color 
+  -- derivative (using BEM solver) and normal.
+  --
+  -- And then for each cell, find all the contained segments, calculate the 
+  -- moments, up to k's order.
+  forM ds $ \d -> do
+    let segs = discretizeCurve d nx ny cellWidth cellHeight
 
+{-
   forM_ ds $ \d -> do
     -- first: BEM solves for E(y_i)
     let segs = discreteSegments d w h nSegs
@@ -95,19 +138,11 @@ solve ds w h = do
                 vector = matrix 1
         matrixZs = [(matrixA - pi*(ident nSegs)) <> v | v <- vectorCs]
 
-    disp 2 matrixN
-    disp 2 matrixS
-    disp 2 matrixT
-    disp 2 matrixA
-    disp 2 matrixB
-    disp 2 $ tr $ vectorCs !! 0
-    disp 2 $ tr $ vectorCs !! 1
-    disp 2 $ tr $ vectorCs !! 2
-
     let vectorEs = [r,g,b] where [Just r, Just g, Just b] = map (linearSolve matrixB) matrixZs
     disp 2 $ tr $ vectorEs !! 0
     disp 2 $ tr $ vectorEs !! 1
     disp 2 $ tr $ vectorEs !! 2
+-}
 
   return ()
 
@@ -117,3 +152,11 @@ main = do
   ds  <- readDvgfile "./data/sample-01.dvg"
   print ds
   solve ds 256 256
+
+test = do
+  let prop_nearestPower1 x = (x >= 0) ==> nearestPower x >= x
+      prop_nearestPower2 n = (n >= 0 && n < 32) ==> nearestPower t == t where t = 2^n
+
+  quickCheck (prop_nearestPower1 :: Int -> Property)
+  quickCheck (prop_nearestPower2 :: Int -> Property)
+
