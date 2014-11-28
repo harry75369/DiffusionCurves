@@ -1,17 +1,20 @@
 module Curves (
-  Curve(..),
-  Segment(..),
-  Color(..),
+    Curve(..)
+  , Segment(..)
+  , Color(..)
 
   -- for debug
-  deCasteljau,
-  controlPoints,
-  discreteSegments,
-  getColor,
-  boundaryColorDifferences,
-  boundaryColorDerivatives,
+  , deCasteljau
+  , controlPoints
+  , discreteSegments
+  , getColor
+  , boundaryColorDifferences
+  , boundaryColorDerivatives
+  {-, properNumSegs-}
+  {-, cut-}
+  {-, makeSegments-}
 
-  discretizeCurve
+  , discretizeCurve
   )
 where
 
@@ -83,9 +86,10 @@ getColor cs = (\t -> f $ (min 1.0).(max 0.0) $ t)
                   a = (t1 - t)  :+ 0
                   b = (t  - t0) :+ 0
                   d = (t1 - t0) :+ 0
-                  f :: Complex Double -> Complex Double -> Complex Double
                   f c0 c1 = (a/d) * c0 + (b/d) * c1
-               in Color (f r0 r1) (f g0 g1) (f b0 b1)
+                  g c0 c1 = (c0+c1) / (2:+0)
+               in if t0 == t1 then Color (g r0 r1) (g g0 g1) (g b0 b1)
+                  else Color (f r0 r1) (f g0 g1) (f b0 b1)
         findDown t list = iter (Color 0 0 0, 0.0) list
           where iter cand [] = cand
                 iter cand@(Color _ _ _, t0) list@((Color _ _ _, t1):xs)
@@ -153,14 +157,64 @@ boundaryColorDerivatives segs difcolors = do
       [Just vectorEr, Just vectorEg, Just vectorEb] = map (linearSolve $ makeComplexMatrix matrixB) matrixZs
       dercolors = [Color (vectorEr!i!0) (vectorEg!i!0) (vectorEb!i!0) | i <- range n]
    in zip dercolors $ map snd difcolors
-  {-disp 2 matrixN-}
-  {-disp 2 matrixS-}
-  {-disp 2 matrixT-}
-  {-disp 2 matrixA-}
-  {-disp 2 matrixB-}
 
 ------------------------------------------------------------
+{-
+properNumSegs :: Curve -> Int -> Int -> Double -> Double -> Int
+properNumSegs curve nx ny cw ch = iter $ max nx ny
+  where
+    width = fromIntegral nx * cw
+    height = fromIntegral ny * ch
+    cps = controlPoints curve width height
+    startPoint = head cps
+    lowerBound = (*0.5) $ min cw ch
+    upperBound = 2 * lowerBound
+    iter guess
+      | len < lowerBound = iter $ guess `div` 2
+      | len > upperBound = iter $ guess * 2
+      | otherwise        = trace ("properNumSegs = " ++ show guess) guess
+      where
+        dt = (1.0 / fromIntegral guess) :: Double
+        endPoint = deCasteljau dt cps
+        len = magnitude $ startPoint - endPoint
 
+cut :: Double -> Double -> Seg -> (Seg, Seg)
+cut cw ch ((start@(xi:+yi), ti), (end@(xj:+yj), tj)) =
+  let x_l = fromIntegral.floor $ xi / cw
+      x_u = x_l + 1.0
+      y_l = fromIntegral.floor $ yi / ch
+      y_u = y_l + 1.0
+      ts  = (if xi == xj then -1 else (x_l-xi)/(xj-xi))
+          : (if xi == xj then -1 else (x_u-xi)/(xj-xi))
+          : (if yi == yj then -1 else (y_l-yi)/(yj-yi))
+          : (if yi == yj then -1 else (y_u-yi)/(yj-yi)) : []
+      tss = (filter (<1)).(filter (>0)) $ ts
+      t   = if null tss then 1 else head tss
+      mt  = start + (end-start) * (t:+0)
+      tt  = (1-t)*ti + t*tj
+   in (((start, ti), (mt, tt)), ((mt, tt), (end, tj)))
+
+makeSegments :: Double -> Double -> [(Color,Double)] -> [(Color,Double)] -> [Seg] -> [Segment]
+makeSegments _ _ _ _ [] = []
+makeSegments cw ch difcolors dercolors (x:xs) =
+  let ((start, ti), (end, tj)) = x
+      (ix, iy) = getIndex start
+      (jx, jy) = getIndex end
+      len = magnitude $ end - start
+      getIndex :: Complex Double -> (Int, Int)
+      getIndex (x :+ y) = (truncate $ x / cw, truncate $ y / ch)
+      makeSegment :: Seg -> Segment
+      makeSegment ((start, ti), (end, tj)) =
+        let vec    = end - start
+            len    = magnitude vec
+            normal = if len < 1e-8 then (0:+0) else (0:+1) * vec / (len:+0)
+            color  = getColor difcolors $ (ti+tj) / 2
+            bcolor = getColor dercolors $ (ti+tj) / 2
+         in Segment start end len normal color bcolor (getIndex start)
+   in if (ix == jx && iy == jy)
+         then if len < 1e-8 then makeSegments xs else makeSegment x : makeSegments cw ch difcolors dercolors xs
+         else makeSegment x0 : makeSegments cw ch difcolors dercolors (x1:xs) where (x0, x1) = cut cw ch x
+-}
 discretizeCurve :: Curve -> Int -> Int -> Double -> Double -> [Segment]
 discretizeCurve curve nx ny cw ch =
   let width  = fromIntegral nx * cw
@@ -192,8 +246,9 @@ discretizeCurve curve nx ny cw ch =
             ts  = (if xi == xj then -1 else (x_l-xi)/(xj-xi))
                 : (if xi == xj then -1 else (x_u-xi)/(xj-xi))
                 : (if yi == yj then -1 else (y_l-yi)/(yj-yi))
-                : (if yi == yj then -1 else (y_u-yj)/(yj-yi)) : []
-            t   = head.(filter (<1)).(filter (>0)) $ ts
+                : (if yi == yj then -1 else (y_u-yi)/(yj-yi)) : []
+            tss = (filter (<1)).(filter (>0)) $ ts
+            t   = if null tss then 1 else head tss
             mt  = start + (end-start) * (t:+0)
             tt  = (1-t)*ti + t*tj
          in (((start, ti), (mt, tt)), ((mt, tt), (end, tj)))
@@ -203,18 +258,19 @@ discretizeCurve curve nx ny cw ch =
         let ((start, ti), (end, tj)) = x
             (ix, iy) = getIndex start
             (jx, jy) = getIndex end
+            len = magnitude $ end - start
             getIndex :: Complex Double -> (Int, Int)
             getIndex (x :+ y) = (truncate $ x / cw, truncate $ y / ch)
             makeSegment :: Seg -> Segment
             makeSegment ((start, ti), (end, tj)) =
               let vec    = end - start
                   len    = magnitude vec
-                  normal = (0:+1) * vec / (len:+0)
+                  normal = if len < 1e-8 then (0:+0) else (0:+1) * vec / (len:+0)
                   color  = getColor difcolors $ (ti+tj) / 2
                   bcolor = getColor dercolors $ (ti+tj) / 2
                in Segment start end len normal color bcolor (getIndex start)
          in if (ix == jx && iy == jy)
-               then makeSegment x : makeSegments xs
+               then if len < 1e-8 then makeSegments xs else makeSegment x : makeSegments xs
                else makeSegment x0 : makeSegments (x1:xs) where (x0, x1) = cut x
    in makeSegments segs
 
