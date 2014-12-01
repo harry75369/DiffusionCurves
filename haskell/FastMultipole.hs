@@ -1,4 +1,9 @@
 module FastMultipole (
+
+    -- for debug
+    factorial
+  , nearestPower,
+
     solve
   , test
   )
@@ -22,8 +27,8 @@ data Cell = Cell {
     m_width    :: Int
   , m_height   :: Int
   , m_pos      :: Complex Double
-  , m_moments  :: Complex Double
-  , m_loccoef  :: Complex Double
+  , m_moments  :: [Complex Double]
+  , m_loccoef  :: [Complex Double]
   , m_children :: [Cell]
   } deriving (Show)
 
@@ -73,10 +78,10 @@ solve ds width height = do
   --
   -- And then for each cell, find all the contained segments, calculate the 
   -- moments, up to k's order.
-  forM ds $ \d -> do
-    let segs = discretizeCurve d nx ny cellWidth cellHeight
-    print segs
-    return ()
+  segments <-  (forM ds $ \d -> return $ discretizeCurve d nx ny cellWidth cellHeight)
+           >>= return.concat
+
+  print segments
 
   return ()
 

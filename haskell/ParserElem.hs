@@ -1,12 +1,16 @@
 module ParserElem (
     spaces
   , lexstr
+
   , identifier
   , integer
   , float
+
+  , dot
   , colon
   , comma
   , semicol
+
   , parens
   , braces
   , brackets
@@ -40,6 +44,7 @@ dot      = T.dot lexer      -- .
 colon    = T.colon lexer    -- :
 comma    = T.comma lexer    -- ,
 semicol  = T.semi lexer     -- ;
+
 parens   = T.parens lexer   -- ()
 braces   = T.braces lexer   -- {}
 brackets = T.brackets lexer -- []

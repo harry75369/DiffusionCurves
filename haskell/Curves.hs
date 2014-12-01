@@ -30,29 +30,29 @@ import Debug.Trace
 
 data Curve =
   DiffusionCurve {
-     m_id      :: Integer
-  ,  m_control :: [(Double,Double)]
-  ,  m_lcolor  :: [(Double,Double,Double,Double)]
-  ,  m_rcolor  :: [(Double,Double,Double,Double)]
-  ,  m_blur    :: [(Double,Double)]
+    m_id      :: Integer
+  , m_control :: [(Double,Double)]
+  , m_lcolor  :: [(Double,Double,Double,Double)]
+  , m_rcolor  :: [(Double,Double,Double,Double)]
+  , m_blur    :: [(Double,Double)]
   } deriving (Show)
 
 data Segment =
   Segment {
-     m_start    :: Complex Double
-  ,  m_end      :: Complex Double
-  ,  m_length   :: Double
-  ,  m_normal   :: Complex Double
-  ,  m_difcolor :: Color          -- boundary color difference
-  ,  m_dercolor :: Color          -- boundary color derivative
-  ,  m_cell     :: Index
+    m_start    :: Complex Double
+  , m_end      :: Complex Double
+  , m_length   :: Double
+  , m_normal   :: Complex Double
+  , m_difcolor :: Color          -- boundary color difference
+  , m_dercolor :: Color          -- boundary color derivative
+  , m_cell     :: Index
   } deriving (Show)
 
 data Color =
   Color {
-     m_red   :: Complex Double
-  ,  m_green :: Complex Double
-  ,  m_blue  :: Complex Double
+    m_red   :: Complex Double
+  , m_green :: Complex Double
+  , m_blue  :: Complex Double
   } deriving (Show)
 
 type Index = (Int, Int)

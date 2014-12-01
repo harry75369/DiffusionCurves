@@ -1,7 +1,7 @@
 all: core
 
 core: Main.hs
-	ghc --make Main
+	ghc --make -O2 Main
 
 gui: Viewer.hs
 	ghc --make Viewer

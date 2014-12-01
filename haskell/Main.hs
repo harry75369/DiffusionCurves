@@ -2,12 +2,13 @@ module Main (main) where
 
 ------------------------------------------------------------
 
-import Dvgfile
-import FastMultipole
+import qualified Dvgfile       as D
+import qualified FastMultipole as F
 
 ------------------------------------------------------------
 
 main = do
-  ds  <- readDvgfile "./data/sample-01.dvg"
+  ds  <- D.readDvgfile "./data/sample-01.dvg"
   print ds
-  solve ds 32 32
+  F.test
+  F.solve ds 32 32
