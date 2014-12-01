@@ -1,8 +1,16 @@
 module ParserElem (
-  spaces, lexstr,
-  identifier, integer, float,
-  colon, comma, semicol,
-  parens, braces, brackets, angles
+    spaces
+  , lexstr
+  , identifier
+  , integer
+  , float
+  , colon
+  , comma
+  , semicol
+  , parens
+  , braces
+  , brackets
+  , angles
   )
 where
 

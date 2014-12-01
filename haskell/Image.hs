@@ -1,5 +1,5 @@
 module Image (
-  matricesToPng
+    matricesToPng
   )
 where
 

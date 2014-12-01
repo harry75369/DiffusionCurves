@@ -1,5 +1,5 @@
 module Dvgfile (
-  readDvgfile
+    readDvgfile
   )
 where
 
