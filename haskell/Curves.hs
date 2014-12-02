@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+
 module Curves (
     Curve(..)
   , Segment(..)
@@ -22,6 +24,7 @@ where
 
 import Data.Complex
 import Numeric.LinearAlgebra.HMatrix
+import qualified Data.Vector as V
 
 -- for debug
 import Debug.Trace
@@ -101,6 +104,19 @@ getColor cs = (\t -> f $ (min 1.0).(max 0.0) $ t)
                   | t1 >= t && t1 <= t0 = iter (head list) xs
                   | otherwise           = iter cand xs
 
+getColorOrdered :: [(Color, Double)] -> Double -> Color
+getColorOrdered [] _ = Color 0 0 0
+getColorOrdered cs t =
+  let s = (min 1.0).(max 0.0) $ t
+      n = length cs
+      i = truncate $ s * fromIntegral n
+      j = min (n-1) (i+1)
+      (Color r0 g0 b0, s0) = cs !! i
+      (Color r1 g1 b1, s1) = cs !! j
+      a = if i==j then (0.5 :+ 0) else (s1-s)/(s1-s0) :+ 0
+      b = if i==j then (0.5 :+ 0) else (s-s0)/(s1-s0) :+ 0
+   in Color (a*r0+b*r1) (a*g0+b*g1) (a*b0+b*b1)
+
 boundaryColorDifferences :: Curve -> Int -> [(Color, Double)]
 boundaryColorDifferences curve nSegs =
   let dt = 1.0 / (fromIntegral nSegs)
@@ -116,43 +132,69 @@ boundaryColorDerivatives :: [Seg] -> [(Color, Double)] -> [(Color, Double)]
 boundaryColorDerivatives segs difcolors = do
   True <- return $ length segs == length difcolors
   let n = length segs
+      ssegs = V.fromList segs
+
+      {-# INLINE range #-}
       range n = [0..n-1]
+      {-# INLINE area #-}
       area  (x1:+y1) (x2:+y2) (x3:+y3) = (*0.5) . abs $ (x1-x3)*(y2-y1)-(x1-x2)*(y3-y1)
+      {-# INLINE dot #-}
       dot   (x1:+y1) (x2:+y2) = x1*x2 + y1*y2
-      matrixN = (n><n) [f i j | i <- range n, j <- range n]
-        where f i j = let ((s0, _), (e0, _)) = segs !! i
-                          ((s1, _), (e1, _)) = segs !! j
-                          m0 = (s0 + e0) / 2
-                       in 2 * (area m0 s1 e1) / (magnitude $ e1-s1)
-      matrixS = (n><n) [f i j | i <- range n, j <- range n]
-        where f i j = let ((s0, _), (e0, _)) = segs !! i
-                          ((s1, _), (e1, _)) = segs !! j
-                          m0 = (s0 + e0) / 2
-                          vec = e1 - s1
-                       in dot (vec / (magnitude vec :+ 0)) (m0 - s1)
-      matrixT = (n><n) [f i j | i <- range n, j <- range n]
-        where f i j = let ((s0, _), (e0, _)) = segs !! i
-                          ((s1, _), (e1, _)) = segs !! j
-                          m0 = (s0 + e0) / 2
-                          vec = e1 - s1
-                       in dot (vec / (magnitude vec :+ 0)) (e1 - m0)
-      matrixA = (n><n) [f i j | i <- range n, j <- range n]
-        where f i j = let t = matrixT ! i ! j
-                          s = matrixS ! i ! j
-                          n = matrixN ! i ! j
-                       in atan (t/n) - atan (s/n)
-      matrixB = (n><n) [f i j | i <- range n, j <- range n]
-        where f i j = let t = matrixT ! i ! j
-                          s = matrixS ! i ! j
-                          n = matrixN ! i ! j
-                          f x = x * log (x*x + n*n)
-                          g x = x - n * atan (x/n)
-                       in 0.5 * (f t - f s) - (g t - g s)
-      vectorCs = [(n><1) $ map (extract.fst) difcolors | extract <- getComponent]
-        where getComponent = [\(Color r g b) -> r,
-                              \(Color r g b) -> g,
-                              \(Color r g b) -> b]
+      {-# INLINE makeComplexMatrix #-}
       makeComplexMatrix m = toComplex (m, (n><n) $ iterate id 0)
+
+      -- matrixN = (n><n) [f i j | i <- range n, j <- range n]
+      matrixN = build (n, n) f :: Matrix Double
+        where
+          {-# INLINE f #-}
+          f :: Double -> Double -> Double
+          f !i !j = let ((s0, _), (e0, _)) = ssegs V.! (truncate i)
+                        ((s1, _), (e1, _)) = ssegs V.! (truncate j)
+                        m0 = (s0 + e0) / 2
+                     in 2 * (area m0 s1 e1) / (magnitude $ e1-s1)
+      -- matrixS = (n><n) [f i j | i <- range n, j <- range n]
+      matrixS = build (n, n) f :: Matrix Double
+        where
+          {-# INLINE f #-}
+          f :: Double -> Double -> Double
+          f !i !j = let ((s0, _), (e0, _)) = ssegs V.! (truncate i)
+                        ((s1, _), (e1, _)) = ssegs V.! (truncate j)
+                        m0 = (s0 + e0) / 2
+                        vec = e1 - s1
+                     in dot (vec / (magnitude vec :+ 0)) (m0 - s1)
+      -- matrixT = (n><n) [f i j | i <- range n, j <- range n]
+      matrixT = build (n, n) f :: Matrix Double
+        where
+          {-# INLINE f #-}
+          f :: Double -> Double -> Double
+          f !i !j = let ((s0, _), (e0, _)) = ssegs V.! (truncate i)
+                        ((s1, _), (e1, _)) = ssegs V.! (truncate j)
+                        m0 = (s0 + e0) / 2
+                        vec = e1 - s1
+                     in dot (vec / (magnitude vec :+ 0)) (e1 - m0)
+      -- matrixA = (n><n) [f i j | i <- range n, j <- range n]
+      matrixA = build (n, n) f :: Matrix Double
+        where
+          {-# INLINE f #-}
+          f :: Double -> Double -> Double
+          f !i !j = let t = matrixT ! (truncate i) ! (truncate j)
+                        s = matrixS ! (truncate i) ! (truncate j)
+                        n = matrixN ! (truncate i) ! (truncate j)
+                     in atan (t/n) - atan (s/n)
+      -- matrixB = (n><n) [f i j | i <- range n, j <- range n]
+      matrixB = build (n, n) f :: Matrix Double
+        where
+          {-# INLINE f #-}
+          f :: Double -> Double -> Double
+          f !i !j = let t = matrixT ! (truncate i) ! (truncate j)
+                        s = matrixS ! (truncate i) ! (truncate j)
+                        n = matrixN ! (truncate i) ! (truncate j)
+                        f x = x * log (x*x + n*n)
+                        g x = x - n * atan (x/n)
+                     in 0.5 * (f t - f s) - (g t - g s)
+      vectorCs =
+        let getComponent = [\(Color r g b) -> r, \(Color r g b) -> g, \(Color r g b) -> b]
+         in [(n><1) $ map (extract.fst) difcolors | extract <- getComponent]
       matrixZs = [(makeComplexMatrix $ matrixA - pi*(ident n)) <> v | v <- vectorCs]
       [Just vectorEr, Just vectorEg, Just vectorEb] = map (linearSolve $ makeComplexMatrix matrixB) matrixZs
       dercolors = [Color (vectorEr!i!0) (vectorEg!i!0) (vectorEb!i!0) | i <- range n]
@@ -208,8 +250,8 @@ makeSegments cw ch difcolors dercolors (x:xs) =
         let vec    = end - start
             len    = magnitude vec
             normal = if len < 1e-8 then (0:+0) else (0:+1) * vec / (len:+0)
-            color  = getColor difcolors $ (ti+tj) / 2
-            bcolor = getColor dercolors $ (ti+tj) / 2
+            color  = getColorOrdered difcolors $ (ti+tj) / 2
+            bcolor = getColorOrdered dercolors $ (ti+tj) / 2
          in Segment start end len normal color bcolor (getIndex start)
    in if (ix == jx && iy == jy)
          then if len < 1e-8 then makeSegments xs else makeSegment x : makeSegments cw ch difcolors dercolors xs
@@ -266,8 +308,8 @@ discretizeCurve curve nx ny cw ch =
               let vec    = end - start
                   len    = magnitude vec
                   normal = if len < 1e-8 then (0:+0) else (0:+1) * vec / (len:+0)
-                  color  = getColor difcolors $ (ti+tj) / 2
-                  bcolor = getColor dercolors $ (ti+tj) / 2
+                  color  = getColorOrdered difcolors $ (ti+tj) / 2
+                  bcolor = getColorOrdered dercolors $ (ti+tj) / 2
                in Segment start end len normal color bcolor (getIndex start)
          in if (ix == jx && iy == jy)
                then if len < 1e-8 then makeSegments xs else makeSegment x : makeSegments xs

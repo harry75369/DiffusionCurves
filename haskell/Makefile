@@ -11,3 +11,6 @@ clean:
 
 cleanall: clean
 	rm -rf Main Viewer
+
+profile: Main.hs
+	ghc --make -O2 -auto-all -caf-all -fforce-recomp -prof Main
