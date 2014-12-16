@@ -302,7 +302,11 @@ discretizeCurve curve nx ny cw ch =
             (jx, jy) = getIndex end
             len = magnitude $ end - start
             getIndex :: Complex Double -> (Int, Int)
-            getIndex (x :+ y) = (truncate $ x / cw, truncate $ y / ch)
+            getIndex (x :+ y) = (ix, iy)
+              where tx = truncate $ x / cw
+                    ty = truncate $ y / ch
+                    ix = if tx >= nx then nx-1 else tx
+                    iy = if ty >= ny then ny-1 else ty
             makeSegment :: Seg -> Segment
             makeSegment ((start, ti), (end, tj)) =
               let vec    = end - start

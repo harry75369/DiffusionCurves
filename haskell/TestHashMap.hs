@@ -1,3 +1,4 @@
+import Prelude as P
 import Data.Complex
 import Control.Monad
 import Control.Monad.Primitive
@@ -39,20 +40,26 @@ test = do
               v <- VM.read mom k
               VM.write mom k (2*v)
             return table
+      buildTables :: [CellTable] -> [Segment] -> IO [CellTable]
+      buildTables tables@(t:_) segments = do
+        newt <- foldM buildTable t segments
+        return $ newt : tables
 
   -- The goal of this test is to verify modification to the value of pair (key, value) 
   -- of an hashmap will persist.
-  table <- foldM buildTable emptyTable segments
-  table2 <- foldM buildTable table segments
-  table3 <- foldM buildTable table2 segments
+  tables <- foldM buildTables [emptyTable] $ P.replicate 4 segments
 
-  forM_ [0..n-1] $ \i -> do
-    forM_ [0..n-1] $ \j -> do
-      let Just cell = HM.lookup (i,j) table3
-          moments = m_moments cell
-      printf "Cell (%d,%d):\n" i j
-      forM_ [0..order-1] $ \k -> do
-        VM.read moments k >>= print
+  let printTable table = do
+        printf "-----------------\n"
+        forM_ [0..n-1] $ \i -> do
+          forM_ [0..n-1] $ \j -> do
+            let Just cell = HM.lookup (i,j) $ head tables
+                moments = m_moments cell
+            printf "Cell (%d,%d):\n" i j
+            forM_ [0..order-1] $ \k -> do
+              VM.read moments k >>= print
+
+  mapM_ printTable tables
 
 main = do
   putStrLn "Testing HashMap..."

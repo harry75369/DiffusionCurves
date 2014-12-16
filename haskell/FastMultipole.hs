@@ -25,6 +25,10 @@ import Image
 -- for test
 import Test.QuickCheck
 
+-- for debug
+import Debug.Trace
+import Text.Printf
+
 ------------------------------------------------------------
 
 data Cell = Cell {
@@ -68,6 +72,7 @@ funS k z
 funR :: Int -> Value -> Value
 funR k z
   | k >= 0    = -(z^k) / (fromIntegral $ factorial k)
+  | k == -1   = 0
   | otherwise = assert False undefined
 
 funM :: Int -> Value -> Segment -> Value3
@@ -90,9 +95,6 @@ funN k zc segment =
 funA :: Int -> Value -> Segment -> Value3
 funA k zc segment = addValue3 (funN k zc segment) (funM k zc segment)
 
-offset :: Int -> Double
-offset i = fromIntegral i + 0.5 :: Double
-
 --------------------------------------------------------------------------------
 --
 -- T. Sun, P. Thamjaroenporn, and C. Zheng, "Fast Multipole Representation of 
@@ -102,38 +104,60 @@ offset i = fromIntegral i + 0.5 :: Double
 
 solve :: [Curve] -> Int -> Int -> IO ()
 solve ds width height = do
+
+  -- Calculate size and cell size at finest level, and define max order.
   let nx = (nearestPower width) :: Int
       ny = (nearestPower height) :: Int
-      maxLevel = (truncate.(logBase 2).fromIntegral $ min nx ny) :: Int
       cellWidth  = (fromIntegral width  / fromIntegral nx) :: Double
       cellHeight = (fromIntegral height / fromIntegral ny) :: Double
+      maxLevel = (truncate.(logBase 2).fromIntegral $ min nx ny) :: Int
       maxOrder = 4 :: Int
+
+  printf "size = %d x %d\n" nx ny
+  printf "cell size = %.2f x %.2f\n" cellWidth cellHeight
+  printf "maxLevel = %d\n" maxLevel
+  printf "maxOrder = %d\n" maxOrder
+
+  -- Define utility functions
+  let nxAtLevel level = nx `div` (2^(maxLevel-level)) :: Int
+      nyAtLevel level = ny `div` (2^(maxLevel-level)) :: Int
+      cwAtLevel level = cellWidth  * (2**(fromIntegral $ maxLevel-level)) :: Double
+      chAtLevel level = cellHeight * (2**(fromIntegral $ maxLevel-level)) :: Double
+      getCell :: CellTable -> Index -> Cell
+      getCell table index =
+        case HM.lookup index table of
+          Nothing -> assert False undefined
+          Just cell -> cell
+      getPosition cw ch (i,j) = (offset i * cw) :+ (offset j * ch)
+        where offset :: Int -> Double
+              offset i = fromIntegral i + 0.5 :: Double
 
   -- At the finest level (maxLevel), discretize each diffusion curve into 
   -- segments so that every segment is wholy contained in a cell.
   --
   -- For each segment, calculate the missing info, e.g. boundary color 
   -- derivative (using BEM solver) and normal.
-  --
+  let doDiscretization d = discretizeCurve d nx ny cellWidth cellHeight
+  segments <- mapM (return.doDiscretization) ds >>= return.concat
+  print segments
+
   -- And then for each cell, find all the contained segments, calculate the 
   -- moments, up to maxOrder's order.
-  let doDiscretization :: Curve -> IO [Segment]
-      doDiscretization d = return $ discretizeCurve d nx ny cellWidth cellHeight
-  segments <- mapM doDiscretization ds >>= return.concat
-
   let emptyTable = HM.empty :: CellTable
+      initTable :: CellTable -> Index -> IO CellTable
+      initTable table idx = do
+        mom <- VM.new maxOrder :: IO Moments
+        loc <- VM.new maxOrder :: IO Coefficients
+        forM_ [0..maxOrder-1] $ \k -> do
+           VM.write mom k (0,0,0)
+           VM.write loc k (0,0,0)
+        return $ HM.insert idx (Cell mom loc) table
       buildTable :: CellTable -> Segment -> IO CellTable
       buildTable table segment = do
-        let idx@(ix, iy) = m_cell segment
-            zc = (offset ix * cellWidth) :+ (offset iy * cellHeight)
+        let idx = m_cell segment
+            zc = getPosition cellWidth cellHeight idx
         case HM.lookup idx table of
-          Nothing -> do
-            mom <- VM.new maxOrder :: IO Moments
-            loc <- VM.new maxOrder :: IO Coefficients
-            forM_ [0..maxOrder-1] $ \k -> do
-              VM.write mom k $ funA k zc segment
-              VM.write loc k (0,0,0)
-            return $ HM.insert idx (Cell mom loc) table
+          Nothing -> print idx >> assert False undefined
           Just cell -> do
             let mom = m_moments cell
             forM_ [0..maxOrder-1] $ \k -> do
@@ -142,25 +166,26 @@ solve ds width height = do
             return table
 
   -- Calculate moments at the finest level
-  table <- foldM buildTable emptyTable segments
+  table <- foldM initTable emptyTable [(i,j) | i <- [0..nx-1], j <- [0..ny-1]]
+       >>= (\table -> foldM buildTable table segments)
 
   -- Upward propagation to calculate moments at each level using M2M Translation
   let initialTables = [table] :: [CellTable]
       buildTables :: [CellTable] -> Int -> IO [CellTable]
-      buildTables tables@(parent:_) level = do
-        let newnx = nx `div` (2^level) :: Int
-            newny = ny `div` (2^level) :: Int
-            indices = [(i,j) | i <- [0..newnx-1], j <- [0..newny-1]]
-            w = cellWidth  * (2**fromIntegral level) :: Double
-            h = cellHeight * (2**fromIntegral level) :: Double
+      buildTables tables@(pTable:_) level = do
+        let nx = nxAtLevel $ maxLevel - level
+            ny = nyAtLevel $ maxLevel - level
+            cw = cwAtLevel $ maxLevel - level
+            ch = chAtLevel $ maxLevel - level
+            indices = [(i,j) | i <- [0..nx-1], j <- [0..ny-1]]
             emptyTable = HM.empty :: CellTable
 
             -- For each cell of this level, find corresponding four cells in the
             -- parent, sum up contributions from each parent cell.
             reduceTable :: CellTable -> Double -> Double -> CellTable -> Index -> IO CellTable
-            reduceTable pTable w h table idx@(i,j) = do
+            reduceTable pTable cw ch table idx@(i,j) = do
               let pIndices = [(2*i+ii, 2*j+jj) | ii <- [0..1], jj <- [0..1]]
-                  zc = (offset i * w) :+ (offset j * h)
+                  zc = getPosition cw ch idx
 
               -- init child cell
               mom <- VM.new maxOrder :: IO Moments
@@ -171,11 +196,8 @@ solve ds width height = do
 
               -- for each parent cell
               forM_ pIndices $ \pIdx@(pi,pj) -> do
-                let pzc = (offset pi * w/2) :+ (offset pj * h/2)
-                    pCell = case HM.lookup pIdx pTable of
-                              Nothing -> assert False undefined
-                              Just cell -> cell
-                    pMom = m_moments pCell
+                let pzc = getPosition (cw/2) (ch/2) pIdx
+                    pMom = m_moments $ getCell pTable pIdx
                 forM_ [0..maxOrder-1] $ \k -> do
                   mk <- VM.read mom k
                   ts <- forM [0..k] $ \t -> do
@@ -186,12 +208,77 @@ solve ds width height = do
 
               return $ HM.insert idx (Cell mom loc) table
 
-        child <- foldM (reduceTable parent w h) emptyTable indices
+        child <- foldM (reduceTable pTable cw ch) emptyTable indices
         return $ child : tables
 
   tables <- foldM buildTables initialTables [1..maxLevel]
 
   -- Downward propagation
+  let pairs = assert (maxLevel > 2) $ P.zip (P.drop 2 tables) (P.drop 3 tables)
+      translateMoments (level, (child, parent)) = do
+        let toChildIndex (i,j) = (i `div` 2, j `div` 2)
+        let findProperIndices idx = P.filter isProper
+              where isNeighbor (xi,xj) (yi,yj) = (abs (xi-yi) < 2) && (abs (xj-yj) < 2)
+                    isProper i = (not $ isNeighbor idx i)
+                              && (isNeighbor (toChildIndex idx) (toChildIndex i))
+
+        let translateM2L level table = do
+              let nx = nxAtLevel level
+                  ny = nyAtLevel level
+                  cw = cwAtLevel level
+                  ch = chAtLevel level
+                  indices = [(i,j) | i <- [0..nx-1], j <- [0..ny-1]]
+
+              -- For each cell, translate the moments of proper cells to its 
+              -- local coefficients using M2L formula
+              forM_ indices $ \i -> do
+                let pIndices = findProperIndices i indices
+                    zl = getPosition cw ch i
+                    loc = m_loccoef $ getCell table i
+
+                forM_ pIndices $ \j -> do
+                  let zc = getPosition cw ch j
+                      mom = m_moments $ getCell table j
+
+                  forM_ [0..maxOrder-1] $ \t -> do
+                    sa <- forM [0..maxOrder-1] $ \k -> do
+                      a <- VM.read mom k
+                      let s = funS (k+t) (zl-zc)
+                      return $ mulValue3 a s
+                    let c = if odd t then 1/(2*pi) else (-1)/(2*pi) :: Double
+                    VM.write loc t $ mulValue3 (sumValue3 sa) (fromDouble c)
+
+        let translateL2L level child parent = do
+              let nx = nxAtLevel $ level + 1
+                  ny = nyAtLevel $ level + 1
+                  ccw = cwAtLevel level
+                  cch = chAtLevel level
+                  pcw = cwAtLevel $ level + 1
+                  pch = cwAtLevel $ level + 1
+                  indices = [(i,j) | i <- [0..nx-1], j <- [0..ny-1]]
+
+              -- For each cell in parent, translate child's local coefficients 
+              -- to it using L2L formula
+              forM_ indices $ \i -> do
+                let j = toChildIndex i
+                    czl = getPosition ccw cch j
+                    pzl = getPosition pcw pch i
+                    cloc = m_loccoef $ getCell child j
+                    ploc = m_loccoef $ getCell parent i
+
+                forM_ [0..maxOrder-1] $ \s -> do
+                  lr <- forM [0..maxOrder-1-s] $ \t -> do
+                    l <- VM.read cloc (s+t)
+                    let r = funR t (pzl-czl)
+                    return $ mulValue3 l r
+                  VM.write ploc s $ mulValue3 (sumValue3 lr) (fromDouble (-1))
+
+        if level > 2 then translateM2L (level+1) parent
+        else translateM2L level child >> translateM2L (level+1) parent
+
+        translateL2L level child parent
+
+  mapM_ translateMoments $ P.zip [2..] pairs
 
   return ()
 
