@@ -14,6 +14,7 @@ where
 import Prelude                       as P
 import Numeric.LinearAlgebra.HMatrix as H
 import Data.Vector.Unboxed.Mutable   as VM
+import qualified Data.Vector.Unboxed as VU
 import Control.Monad
 import Control.Monad.Primitive
 import Data.HashMap.Lazy             as HM
@@ -39,6 +40,7 @@ data Cell = Cell {
 type Index        = (Int, Int)
 type Value        = Complex Double
 type Value3       = (Value, Value, Value)
+type Double3      = (Double, Double, Double)
 type Moments      = VM.MVector RealWorld Value3
 type Coefficients = Moments
 type CellTable    = HM.HashMap Index Cell
@@ -46,6 +48,7 @@ type CellTable    = HM.HashMap Index Cell
 addValue3 (x0, y0, z0) (x1, y1, z1) = (x0+x1, y0+y1, z0+z1)
 mulValue3 (x, y, z) k = (k*x, k*y, k*z)
 sumValue3 = foldl addValue3 (0,0,0)
+fromValue3 (x,y,z) = (realPart x, realPart y, realPart z)
 
 ------------------------------------------------------------
 
@@ -279,6 +282,23 @@ solve ds width height = do
         translateL2L level child parent
 
   mapM_ translateMoments $ P.zip [2..] pairs
+
+  let calcResult :: IO (VU.Vector Double3)
+      calcResult = do
+        let f idx = do
+              let i = idx `div` nx
+                  j = idx `rem` nx
+                  loc = m_loccoef $ getCell table (i,j)
+              lr <- forM [0..maxOrder-1] $ \i -> do
+                l <- VM.read loc i
+                let r = funR i (fromDouble 0)
+                return $ mulValue3 l r
+              return $ fromValue3 $ sumValue3 lr
+        VU.generateM (nx*ny) f
+
+  result <- calcResult
+  print result
+  vectorToPng nx ny result "result.png"
 
   return ()
 
