@@ -63,6 +63,7 @@ class DiffusionCurve:
       colors.append(c)
     for i in range(3): # interpolate
       nonzeropos = np.nonzero(colors[i])[0]
+      if len(nonzeropos) == 0: continue
       if nonzeropos[0] != 0:
         nonzeropos = np.append(0, nonzeropos)
       if nonzeropos[-1] != n-1:
