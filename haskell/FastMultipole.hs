@@ -143,6 +143,12 @@ solve ds width height = do
   let doDiscretization d = discretizeCurve d nx ny cellWidth cellHeight
   segments <- mapM (return.doDiscretization) ds >>= return.concat
   print segments
+  let drawSegments = H.build (nx, ny) f :: H.Matrix Double
+        where indices = P.map m_cell segments
+              f :: Double -> Double -> Double
+              f i j = fromIntegral $ P.length $ P.filter (\(x,y) -> fromIntegral x == i && fromIntegral y == j) indices
+  H.disp 0 $ drawSegments
+  printf "Total number of segments: %d\n" (P.length segments)
 
   -- And then for each cell, find all the contained segments, calculate the 
   -- moments, up to maxOrder's order.
@@ -171,6 +177,21 @@ solve ds width height = do
   -- Calculate moments at the finest level
   table <- foldM initTable emptyTable [(i,j) | i <- [0..nx-1], j <- [0..ny-1]]
        >>= (\table -> foldM buildTable table segments)
+
+  let printTable :: Int -> Int -> CellTable -> IO ()
+      printTable w h table = do
+        let indices = [(i,j) | i <- [0..w-1], j <- [0..h-1]]
+        forM_ indices $ \idx@(i,j) -> do
+          let c = getCell table idx
+              m = m_moments c
+              l = m_loccoef c
+          printf "Cell (%d, %d)\n" i j
+          forM_ [0..maxOrder-1] $ \k -> do
+            VM.read m k >>= print
+            VM.read l k >>= print
+
+  printTable nx ny table
+
 
   -- Upward propagation to calculate moments at each level using M2M Translation
   let initialTables = [table] :: [CellTable]
@@ -218,70 +239,71 @@ solve ds width height = do
 
   -- Downward propagation
   let pairs = assert (maxLevel > 2) $ P.zip (P.drop 2 tables) (P.drop 3 tables)
+      toChildIndex (i,j) = (i `div` 2, j `div` 2)
+      findProperIndices idx = P.filter isProper
+        where isNeighbor (xi,xj) (yi,yj) = (abs (xi-yi) < 2) && (abs (xj-yj) < 2)
+              isProper i = (not $ isNeighbor idx i)
+                        && (isNeighbor (toChildIndex idx) (toChildIndex i))
+
+      translateM2L level table = do
+        let nx = nxAtLevel level
+            ny = nyAtLevel level
+            cw = cwAtLevel level
+            ch = chAtLevel level
+            indices = [(i,j) | i <- [0..nx-1], j <- [0..ny-1]]
+
+        -- For each cell, translate the moments of proper cells to its 
+        -- local coefficients using M2L formula
+        forM_ indices $ \i -> do
+          let pIndices = findProperIndices i indices
+              zl = getPosition cw ch i
+              loc = m_loccoef $ getCell table i
+
+          forM_ pIndices $ \j -> do
+            let zc = getPosition cw ch j
+                mom = m_moments $ getCell table j
+
+            forM_ [0..maxOrder-1] $ \t -> do
+              sa <- forM [0..maxOrder-1] $ \k -> do
+                a <- VM.read mom k
+                let s = funS (k+t) (zl-zc)
+                return $ mulValue3 a s
+              let c = if odd t then 1/(2*pi) else (-1)/(2*pi) :: Double
+              VM.write loc t $ mulValue3 (sumValue3 sa) (fromDouble c)
+
+      translateL2L level child parent = do
+        let nx = nxAtLevel $ level + 1
+            ny = nyAtLevel $ level + 1
+            ccw = cwAtLevel level
+            cch = chAtLevel level
+            pcw = cwAtLevel $ level + 1
+            pch = cwAtLevel $ level + 1
+            indices = [(i,j) | i <- [0..nx-1], j <- [0..ny-1]]
+
+        -- For each cell in parent, translate child's local coefficients 
+        -- to it using L2L formula
+        forM_ indices $ \i -> do
+          let j = toChildIndex i
+              czl = getPosition ccw cch j
+              pzl = getPosition pcw pch i
+              cloc = m_loccoef $ getCell child j
+              ploc = m_loccoef $ getCell parent i
+
+          forM_ [0..maxOrder-1] $ \s -> do
+            lr <- forM [0..maxOrder-1-s] $ \t -> do
+              l <- VM.read cloc (s+t)
+              let r = funR t (pzl-czl)
+              return $ mulValue3 l r
+            VM.write ploc s $ mulValue3 (sumValue3 lr) (fromDouble (-1))
+
       translateMoments (level, (child, parent)) = do
-        let toChildIndex (i,j) = (i `div` 2, j `div` 2)
-        let findProperIndices idx = P.filter isProper
-              where isNeighbor (xi,xj) (yi,yj) = (abs (xi-yi) < 2) && (abs (xj-yj) < 2)
-                    isProper i = (not $ isNeighbor idx i)
-                              && (isNeighbor (toChildIndex idx) (toChildIndex i))
-
-        let translateM2L level table = do
-              let nx = nxAtLevel level
-                  ny = nyAtLevel level
-                  cw = cwAtLevel level
-                  ch = chAtLevel level
-                  indices = [(i,j) | i <- [0..nx-1], j <- [0..ny-1]]
-
-              -- For each cell, translate the moments of proper cells to its 
-              -- local coefficients using M2L formula
-              forM_ indices $ \i -> do
-                let pIndices = findProperIndices i indices
-                    zl = getPosition cw ch i
-                    loc = m_loccoef $ getCell table i
-
-                forM_ pIndices $ \j -> do
-                  let zc = getPosition cw ch j
-                      mom = m_moments $ getCell table j
-
-                  forM_ [0..maxOrder-1] $ \t -> do
-                    sa <- forM [0..maxOrder-1] $ \k -> do
-                      a <- VM.read mom k
-                      let s = funS (k+t) (zl-zc)
-                      return $ mulValue3 a s
-                    let c = if odd t then 1/(2*pi) else (-1)/(2*pi) :: Double
-                    VM.write loc t $ mulValue3 (sumValue3 sa) (fromDouble c)
-
-        let translateL2L level child parent = do
-              let nx = nxAtLevel $ level + 1
-                  ny = nyAtLevel $ level + 1
-                  ccw = cwAtLevel level
-                  cch = chAtLevel level
-                  pcw = cwAtLevel $ level + 1
-                  pch = cwAtLevel $ level + 1
-                  indices = [(i,j) | i <- [0..nx-1], j <- [0..ny-1]]
-
-              -- For each cell in parent, translate child's local coefficients 
-              -- to it using L2L formula
-              forM_ indices $ \i -> do
-                let j = toChildIndex i
-                    czl = getPosition ccw cch j
-                    pzl = getPosition pcw pch i
-                    cloc = m_loccoef $ getCell child j
-                    ploc = m_loccoef $ getCell parent i
-
-                forM_ [0..maxOrder-1] $ \s -> do
-                  lr <- forM [0..maxOrder-1-s] $ \t -> do
-                    l <- VM.read cloc (s+t)
-                    let r = funR t (pzl-czl)
-                    return $ mulValue3 l r
-                  VM.write ploc s $ mulValue3 (sumValue3 lr) (fromDouble (-1))
-
-        if level > 2 then translateM2L (level+1) parent
-        else translateM2L level child >> translateM2L (level+1) parent
-
+        translateM2L (level+1) parent
         translateL2L level child parent
 
+  translateM2L 2 (tables !! 2)
   mapM_ translateMoments $ P.zip [2..] pairs
+
+  printTable nx ny table
 
   let calcResult :: IO (VU.Vector Double3)
       calcResult = do
@@ -299,6 +321,8 @@ solve ds width height = do
   result <- calcResult
   print result
   vectorToPng nx ny result "result.png"
+
+  print $ VU.map (\(x,y,z)->(255*x,255*y,255*z)) result
 
   return ()
 

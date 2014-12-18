@@ -49,7 +49,7 @@ data Segment =
   , m_difcolor :: Color          -- boundary color difference
   , m_dercolor :: Color          -- boundary color derivative
   , m_cell     :: Index
-  } deriving (Show)
+  }
 
 data Color =
   Color {
@@ -60,6 +60,20 @@ data Color =
 
 type Index = (Int, Int)
 type Seg = ((Complex Double, Double), (Complex Double, Double))
+
+instance Show Segment where
+  show (Segment s e l n di de c) =
+    "segment: (" ++ show s ++ ") -> (" ++ show e ++ ")\n" ++
+    "length:   " ++ show l ++ "\n" ++
+    "normal:   (" ++ show n ++ ")\n" ++
+    "difcolor: " ++ show di ++ "\n" ++
+    "dercolor: " ++ show de ++ "\n" ++
+    "index:    " ++ show c ++ "\n"
+
+to255Color :: Color -> Color
+to255Color (Color r g b) =
+  let s = 255.0 :+ 0.0
+   in Color (s*r) (s*g) (s*b)
 
 ------------------------------------------------------------
 
@@ -312,8 +326,8 @@ discretizeCurve curve nx ny cw ch =
               let vec    = end - start
                   len    = magnitude vec
                   normal = if len < 1e-8 then (0:+0) else (0:+1) * vec / (len:+0)
-                  color  = getColorOrdered difcolors $ (ti+tj) / 2
-                  bcolor = getColorOrdered dercolors $ (ti+tj) / 2
+                  color  = id $ getColorOrdered difcolors $ (ti+tj) / 2
+                  bcolor = id $ getColorOrdered dercolors $ (ti+tj) / 2
                in Segment start end len normal color bcolor (getIndex start)
          in if (ix == jx && iy == jy)
                then if len < 1e-8 then makeSegments xs else makeSegment x : makeSegments xs
