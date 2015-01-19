@@ -11,7 +11,7 @@ lap = abs(del2(img));
 
 % Calculate discrete second partial derivatives
 if 1
-  g = fspecial('gaussian', 11);
+  g = fspecial('gaussian', 9);
   [gx, gy] = gradient(g);
   [gxx, gxy] = gradient(gx);
   [gyx, gyy] = gradient(gy);
@@ -44,4 +44,56 @@ end
 n = zeros(size(img,1), size(img,2), 3);
 n(:,:,1) = (1-ny)/2;
 n(:,:,2) = (1+nx)/2;
+figure;imshow(lap)
 figure;imshow(n)
+e = edge(lap, 'canny');
+figure;imshow(e)
+
+% Calculate select points
+selected = zeros(size(e));
+n1 = [cos(7*pi/8) ; sin(7*pi/8) ];
+n2 = [cos(pi/8)   ; sin(pi/8)   ];
+n3 = [cos(3*pi/8) ; sin(3*pi/8) ];
+n4 = [cos(13*pi/8); sin(13*pi/8)];
+for x = 1:size(e,1)
+  for y = 1:size(e,2)
+    if e(x, y) == 0
+      continue
+    end
+     
+    if laplacian(x,y) < 0.01
+      continue
+    end
+     
+    nt = [nx(x,y) ny(x,y)];
+    if nt * n1 <= 0 && nt * n2 > 0
+      xx1 = x + 1;
+    elseif nt * n2 < 0 && nt * n1 >= 0
+      xx1 = x - 1;
+    else
+      xx1 = x;
+    end
+    if nt * n3 <= 0 && nt * n4 > 0
+      yy1 = y -1;
+    elseif nt * n4 < 0 && nt * n3 >= 0
+      yy1 = y + 1;
+    else
+      yy1 = y;
+    end
+    xx2 = 2 * x - xx1;
+    yy2 = 2 * y - yy1;
+    
+    if xx1 > 0 && xx1 <= size(e,1) && ...
+       yy1 > 0 && yy1 <= size(e,2) && ...
+       laplacian(x,y) < laplacian(xx1,yy1)
+      continue
+    end
+    if xx2 > 0 && xx2 <= size(e,1) && ...
+       yy2 > 0 && yy2 <= size(e,2) && ...
+       laplacian(x,y) < laplacian(xx2,yy2)
+      continue
+    end
+    selected(x, y) = 1;
+  end
+end
+figure;imshow(selected)
