@@ -6,6 +6,7 @@ import System.Exit
 import Foreign
 import Foreign.C
 import qualified Text.PrettyPrint as Pretty
+import qualified Data.ByteString.Char8 as BS
 
 import Graphics.Rendering.OpenGL.Raw
 import Graphics.Rendering.GLU.Raw
@@ -34,8 +35,8 @@ initGL win = do
 drawScene :: GLuint -> GLuint -> GLFW.Window -> IO ()
 drawScene vbo pid win = do
   glClear $ fromIntegral $ gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT
-  glMatrixLoadIdentity gl_PROJECTION
-  glMatrixLoadIdentity gl_MODELVIEW
+  --glMatrixLoadIdentity gl_PROJECTION
+  --glMatrixLoadIdentity gl_MODELVIEW
 
   glUseProgram pid
 
@@ -50,8 +51,8 @@ drawScene vbo pid win = do
 resizeScene :: GLFW.FramebufferSizeCallback
 resizeScene win w h = do
   glViewport 0 0 (fromIntegral w) (fromIntegral h)
-  glMatrixLoadIdentity gl_PROJECTION
-  glMatrixLoadIdentity gl_MODELVIEW
+  --glMatrixLoadIdentity gl_PROJECTION
+  --glMatrixLoadIdentity gl_MODELVIEW
   glFlush
 
 shutdown :: GLFW.WindowCloseCallback
@@ -78,6 +79,17 @@ printInformation win = do
     Pretty.text "Renderer:" Pretty.<+> Pretty.text renderer Pretty.$+$
     Pretty.text "Samples:"  Pretty.<+> (Pretty.text . show) samples
     )
+
+checkExtensions :: IO ()
+checkExtensions = do
+  exts <- liftM BS.pack $ liftM castPtr (glGetString gl_EXTENSIONS) >>= peekCString
+  
+  let targets = ["EXT_direct_state_access"]
+      checkExt ext =
+        let (_, matched) = BS.breakSubstring (BS.pack ext) exts
+         in if BS.null matched then error ("required " ++ ext ++ " extension is not present")
+                               else putStrLn ("found " ++ ext ++ " extension")
+   in mapM_ checkExt targets
 
 checkShaderStatus shaderID =
   alloca $ \presult ->
@@ -152,6 +164,7 @@ main = do
   Just win <- GLFW.createWindow 800 600 "GLViewer" Nothing Nothing
   GLFW.makeContextCurrent (Just win)
   printInformation win
+  --checkExtensions
   vbo <- initGL win
   vertShader <- readFile "vertex.glsl"
   fragShader <- readFile "fragment.glsl"
