@@ -14,45 +14,166 @@ import qualified Graphics.UI.GLFW as GLFW
 
 fetch f x = alloca $ \ptr -> poke ptr 0 >> f x ptr >> peek ptr
 
-initGL :: GLFW.Window -> IO GLuint
+initGL :: GLFW.Window -> IO [GLuint]
 initGL win = do
   glClearColor 0.5 0.5 0.5 1
+  glEnable gl_DEPTH_TEST
+  glDepthFunc gl_LESS
 
+  -- Bind vertex array object
   vao <- fetch glGenVertexArrays 1
   glBindVertexArray vao
 
-  let vertices = [-1.0, -1.0, 0.0,
-                   1.0, -1.0, 0.0,
-                   0.0,  1.0, 0.0] :: [Float]
+  -- Vertex buffer object
+  let vertices = [
+        -1.0,-1.0,-1.0,
+        -1.0,-1.0, 1.0,
+        -1.0, 1.0, 1.0,
+        1.0, 1.0,-1.0,
+        -1.0,-1.0,-1.0,
+        -1.0, 1.0,-1.0,
+        1.0,-1.0, 1.0,
+        -1.0,-1.0,-1.0,
+        1.0,-1.0,-1.0,
+        1.0, 1.0,-1.0,
+        1.0,-1.0,-1.0,
+        -1.0,-1.0,-1.0,
+        -1.0,-1.0,-1.0,
+        -1.0, 1.0, 1.0,
+        -1.0, 1.0,-1.0,
+        1.0,-1.0, 1.0,
+        -1.0,-1.0, 1.0,
+        -1.0,-1.0,-1.0,
+        -1.0, 1.0, 1.0,
+        -1.0,-1.0, 1.0,
+        1.0,-1.0, 1.0,
+        1.0, 1.0, 1.0,
+        1.0,-1.0,-1.0,
+        1.0, 1.0,-1.0,
+        1.0,-1.0,-1.0,
+        1.0, 1.0, 1.0,
+        1.0,-1.0, 1.0,
+        1.0, 1.0, 1.0,
+        1.0, 1.0,-1.0,
+        -1.0, 1.0,-1.0,
+        1.0, 1.0, 1.0,
+        -1.0, 1.0,-1.0,
+        -1.0, 1.0, 1.0,
+        1.0, 1.0, 1.0,
+        -1.0, 1.0, 1.0,
+        1-1.0,-1.0,-1.0,
+        -1.0, 1.0,-1.0,
+        1.0,-1.0, 1.0,
+        -1.0,-1.0,-1.0,
+        1.0,-1.0,-1.0,
+        1.0, 1.0,-1.0,
+        1.0,-1.0,-1.0,
+        -1.0,-1.0,-1.0,
+        -1.0,-1.0,-1.0,
+        -1.0, 1.0, 1.0,
+        -1.0, 1.0,-1.0,
+        1.0,-1.0, 1.0,
+        -1.0,-1.0, 1.0,
+        -1.0,-1.0,-1.0,
+        -1.0, 1.0, 1.0,
+        -1.0,-1.0, 1.0,
+        1.0,-1.0, 1.0,
+        1.0, 1.0, 1.0,
+        1.0,-1.0,-1.0,
+        1.0, 1.0,-1.0,
+        1.0,-1.0,-1.0,
+        1.0, 1.0, 1.0,
+        1.0,-1.0, 1.0,
+        1.0, 1.0, 1.0,
+        1.0, 1.0,-1.0,
+        -1.0, 1.0,-1.0,
+        1.0, 1.0, 1.0,
+        -1.0, 1.0,-1.0,
+        -1.0, 1.0, 1.0,
+        1.0, 1.0, 1.0,
+        -1.0, 1.0, 1.0,
+        1.0,-1.0, 1.0] :: [GLfloat]
       vsize = 4 * length vertices
-  vbo <- fetch glGenBuffers 1
-  glBindBuffer gl_ARRAY_BUFFER vbo
+      colors = [
+        0.583, 0.771, 0.014,
+        0.609, 0.115, 0.436,
+        0.327, 0.483, 0.844,
+        0.822, 0.569, 0.201,
+        0.435, 0.602, 0.223,
+        0.310, 0.747, 0.185,
+        0.597, 0.770, 0.761,
+        0.559, 0.436, 0.730,
+        0.359, 0.583, 0.152,
+        0.483, 0.596, 0.789,
+        0.559, 0.861, 0.639,
+        0.195, 0.548, 0.859,
+        0.014, 0.184, 0.576,
+        0.771, 0.328, 0.970,
+        0.406, 0.615, 0.116,
+        0.676, 0.977, 0.133,
+        0.971, 0.572, 0.833,
+        0.140, 0.616, 0.489,
+        0.997, 0.513, 0.064,
+        0.945, 0.719, 0.592,
+        0.543, 0.021, 0.978,
+        0.279, 0.317, 0.505,
+        0.167, 0.620, 0.077,
+        0.347, 0.857, 0.137,
+        0.055, 0.953, 0.042,
+        0.714, 0.505, 0.345,
+        0.783, 0.290, 0.734,
+        0.722, 0.645, 0.174,
+        0.302, 0.455, 0.848,
+        0.225, 0.587, 0.040,
+        0.517, 0.713, 0.338,
+        0.053, 0.959, 0.120,
+        0.393, 0.621, 0.362,
+        0.673, 0.211, 0.457,
+        0.820, 0.883, 0.371,
+        0.982, 0.099, 0.879] :: [GLfloat]
+      csize = 4 * length colors
+  vbo1 <- fetch glGenBuffers 1
+  glBindBuffer gl_ARRAY_BUFFER vbo1
   withArray vertices $ \vsptr ->
     glBufferData gl_ARRAY_BUFFER (fromIntegral vsize) vsptr gl_STATIC_DRAW
 
-  return vbo
+  vbo2 <- fetch glGenBuffers 1
+  glBindBuffer gl_ARRAY_BUFFER vbo2
+  withArray colors $ \csptr ->
+    glBufferData gl_ARRAY_BUFFER (fromIntegral csize) csptr gl_STATIC_DRAW
 
-drawScene :: GLuint -> GLuint -> GLFW.Window -> IO ()
-drawScene vbo pid win = do
+  return [vbo1, vbo2]
+
+drawScene :: [GLuint] -> GLuint -> GLFW.Window -> IO ()
+drawScene vbos pid win = do
   glClear $ fromIntegral $ gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT
-  --glMatrixLoadIdentity gl_PROJECTION
-  --glMatrixLoadIdentity gl_MODELVIEW
+  glMatrixMode gl_PROJECTION
+  glLoadIdentity
+  gluPerspective 45.0 1.333 0.1 100.0
+  glMatrixMode gl_MODELVIEW
+  glLoadIdentity
+  gluLookAt 4 3 3 0 0 0 0 1 0
 
   glUseProgram pid
 
   glEnableVertexAttribArray 0
-  glBindBuffer gl_ARRAY_BUFFER vbo
+  glEnableVertexAttribArray 1
+
+  glBindBuffer gl_ARRAY_BUFFER (head vbos)
   glVertexAttribPointer 0 3 gl_FLOAT (fromIntegral gl_FALSE) 0 nullPtr
-  glDrawArrays gl_TRIANGLES 0 3
+  glBindBuffer gl_ARRAY_BUFFER (vbos!!1)
+  glVertexAttribPointer 1 3 gl_FLOAT (fromIntegral gl_FALSE) 0 nullPtr
+
+  glDrawArrays gl_TRIANGLES 0 36
+
   glDisableVertexAttribArray 0
+  glDisableVertexAttribArray 1
 
   GLFW.swapBuffers win
 
 resizeScene :: GLFW.FramebufferSizeCallback
 resizeScene win w h = do
   glViewport 0 0 (fromIntegral w) (fromIntegral h)
-  --glMatrixLoadIdentity gl_PROJECTION
-  --glMatrixLoadIdentity gl_MODELVIEW
   glFlush
 
 shutdown :: GLFW.WindowCloseCallback
@@ -83,7 +204,7 @@ printInformation win = do
 checkExtensions :: IO ()
 checkExtensions = do
   exts <- liftM BS.pack $ liftM castPtr (glGetString gl_EXTENSIONS) >>= peekCString
-  
+
   let targets = ["EXT_direct_state_access"]
       checkExt ext =
         let (_, matched) = BS.breakSubstring (BS.pack ext) exts
@@ -102,7 +223,8 @@ checkShaderStatus shaderID =
       message <- alloca $ \pmessage ->
         glGetShaderInfoLog shaderID infoLogLength nullPtr pmessage
         >> peekCString pmessage
-      putStrLn message
+      putStrLn "=== Shader Status ==="
+      if null message then putStrLn "OK" else putStr message
 
 checkProgramStatus programID =
   alloca $ \presult ->
@@ -115,7 +237,8 @@ checkProgramStatus programID =
       message <- alloca $ \pmessage ->
         glGetProgramInfoLog programID infoLogLength nullPtr pmessage
         >> peekCString pmessage
-      putStrLn message
+      putStrLn "=== Program Status ==="
+      if null message then putStrLn "OK" else putStr message
 
 loadShaders :: String -> String -> IO GLuint
 loadShaders vs fs = do
@@ -165,13 +288,13 @@ main = do
   GLFW.makeContextCurrent (Just win)
   printInformation win
   --checkExtensions
-  vbo <- initGL win
+  vbos <- initGL win
   vertShader <- readFile "vertex.glsl"
   fragShader <- readFile "fragment.glsl"
   pid <- loadShaders vertShader fragShader
 
   -- Setup callbacks
-  GLFW.setWindowRefreshCallback win (Just $ drawScene vbo pid)
+  GLFW.setWindowRefreshCallback win (Just $ drawScene vbos pid)
   GLFW.setFramebufferSizeCallback win (Just resizeScene)
   GLFW.setWindowCloseCallback win (Just shutdown)
   GLFW.setKeyCallback win (Just keyPressed)
@@ -179,4 +302,4 @@ main = do
   -- Run
   forever $ do
     GLFW.pollEvents
-    drawScene vbo pid win
+    drawScene vbos pid win
