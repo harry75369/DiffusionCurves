@@ -1,8 +1,11 @@
-#version 330 core
+#version 330 compatibility
 
-in  vec3 fragmentColor;
+in  vec2 texCoord;
+
 out vec3 color;
 
+uniform sampler2D myTextureSampler;
+
 void main() {
-  color = fragmentColor;
+  color = texture(myTextureSampler, texCoord).rgb;
 }

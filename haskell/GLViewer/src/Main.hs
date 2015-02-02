@@ -7,6 +7,8 @@ import Foreign
 import Foreign.C
 import qualified Text.PrettyPrint as Pretty
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Lazy as BSL
+import Codec.Picture
 
 import Graphics.Rendering.OpenGL.Raw
 import Graphics.Rendering.GLU.Raw
@@ -94,44 +96,44 @@ initGL win = do
         -1.0, 1.0, 1.0,
         1.0,-1.0, 1.0] :: [GLfloat]
       vsize = 4 * length vertices
-      colors = [
-        0.583, 0.771, 0.014,
-        0.609, 0.115, 0.436,
-        0.327, 0.483, 0.844,
-        0.822, 0.569, 0.201,
-        0.435, 0.602, 0.223,
-        0.310, 0.747, 0.185,
-        0.597, 0.770, 0.761,
-        0.559, 0.436, 0.730,
-        0.359, 0.583, 0.152,
-        0.483, 0.596, 0.789,
-        0.559, 0.861, 0.639,
-        0.195, 0.548, 0.859,
-        0.014, 0.184, 0.576,
-        0.771, 0.328, 0.970,
-        0.406, 0.615, 0.116,
-        0.676, 0.977, 0.133,
-        0.971, 0.572, 0.833,
-        0.140, 0.616, 0.489,
-        0.997, 0.513, 0.064,
-        0.945, 0.719, 0.592,
-        0.543, 0.021, 0.978,
-        0.279, 0.317, 0.505,
-        0.167, 0.620, 0.077,
-        0.347, 0.857, 0.137,
-        0.055, 0.953, 0.042,
-        0.714, 0.505, 0.345,
-        0.783, 0.290, 0.734,
-        0.722, 0.645, 0.174,
-        0.302, 0.455, 0.848,
-        0.225, 0.587, 0.040,
-        0.517, 0.713, 0.338,
-        0.053, 0.959, 0.120,
-        0.393, 0.621, 0.362,
-        0.673, 0.211, 0.457,
-        0.820, 0.883, 0.371,
-        0.982, 0.099, 0.879] :: [GLfloat]
-      csize = 4 * length colors
+      uvs = [
+        0.000059, 1.0-0.000004,
+        0.000103, 1.0-0.336048,
+        0.335973, 1.0-0.335903,
+        1.000023, 1.0-0.000013,
+        0.667979, 1.0-0.335851,
+        0.999958, 1.0-0.336064,
+        0.667979, 1.0-0.335851,
+        0.336024, 1.0-0.671877,
+        0.667969, 1.0-0.671889,
+        1.000023, 1.0-0.000013,
+        0.668104, 1.0-0.000013,
+        0.667979, 1.0-0.335851,
+        0.000059, 1.0-0.000004,
+        0.335973, 1.0-0.335903,
+        0.336098, 1.0-0.000071,
+        0.667979, 1.0-0.335851,
+        0.335973, 1.0-0.335903,
+        0.336024, 1.0-0.671877,
+        1.000004, 1.0-0.671847,
+        0.999958, 1.0-0.336064,
+        0.667979, 1.0-0.335851,
+        0.668104, 1.0-0.000013,
+        0.335973, 1.0-0.335903,
+        0.667979, 1.0-0.335851,
+        0.335973, 1.0-0.335903,
+        0.668104, 1.0-0.000013,
+        0.336098, 1.0-0.000071,
+        0.000103, 1.0-0.336048,
+        0.000004, 1.0-0.671870,
+        0.336024, 1.0-0.671877,
+        0.000103, 1.0-0.336048,
+        0.336024, 1.0-0.671877,
+        0.335973, 1.0-0.335903,
+        0.667969, 1.0-0.671889,
+        1.000004, 1.0-0.671847,
+        0.667979, 1.0-0.335851] :: [GLfloat]
+      uvsize = 4 * length uvs
   vbo1 <- fetch glGenBuffers 1
   glBindBuffer gl_ARRAY_BUFFER vbo1
   withArray vertices $ \vsptr ->
@@ -139,13 +141,13 @@ initGL win = do
 
   vbo2 <- fetch glGenBuffers 1
   glBindBuffer gl_ARRAY_BUFFER vbo2
-  withArray colors $ \csptr ->
-    glBufferData gl_ARRAY_BUFFER (fromIntegral csize) csptr gl_STATIC_DRAW
+  withArray uvs $ \uvsptr ->
+    glBufferData gl_ARRAY_BUFFER (fromIntegral uvsize) uvsptr gl_STATIC_DRAW
 
   return [vbo1, vbo2]
 
-drawScene :: [GLuint] -> GLuint -> GLFW.Window -> IO ()
-drawScene vbos pid win = do
+drawScene :: [GLuint] -> GLuint -> GLuint -> GLint -> GLFW.Window -> IO ()
+drawScene vbos pid tbo tid win = do
   glClear $ fromIntegral $ gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT
   glMatrixMode gl_PROJECTION
   glLoadIdentity
@@ -156,13 +158,17 @@ drawScene vbos pid win = do
 
   glUseProgram pid
 
+  glActiveTexture gl_TEXTURE0
+  glBindTexture gl_TEXTURE_2D tbo
+  glUniform1i tid 0
+
   glEnableVertexAttribArray 0
   glEnableVertexAttribArray 1
 
   glBindBuffer gl_ARRAY_BUFFER (head vbos)
   glVertexAttribPointer 0 3 gl_FLOAT (fromIntegral gl_FALSE) 0 nullPtr
   glBindBuffer gl_ARRAY_BUFFER (vbos!!1)
-  glVertexAttribPointer 1 3 gl_FLOAT (fromIntegral gl_FALSE) 0 nullPtr
+  glVertexAttribPointer 1 2 gl_FLOAT (fromIntegral gl_FALSE) 0 nullPtr
 
   glDrawArrays gl_TRIANGLES 0 36
 
@@ -240,6 +246,22 @@ checkProgramStatus programID =
       putStrLn "=== Program Status ==="
       if null message then putStrLn "OK" else putStr message
 
+loadTexture :: FilePath -> IO GLuint
+loadTexture path = do
+  Right dynimg <- readTGA path
+  let ImageRGB8 img = dynimg
+  let w = imageWidth img
+      h = imageHeight img
+
+  tbo <- fetch glGenTextures 1
+  glBindTexture gl_TEXTURE_2D tbo
+  BS.useAsCString (BSL.toStrict $ encodeTga img) $ \imgdata ->
+    glTexImage2D gl_TEXTURE_2D 0 (fromIntegral gl_RGB) (fromIntegral w) (fromIntegral h) 0 (fromIntegral gl_RGB) gl_UNSIGNED_BYTE imgdata
+  glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MAG_FILTER (fromIntegral gl_NEAREST)
+  glTexParameteri gl_TEXTURE_2D gl_TEXTURE_MIN_FILTER (fromIntegral gl_NEAREST)
+
+  return tbo
+
 loadShaders :: String -> String -> IO GLuint
 loadShaders vs fs = do
   vsID <- glCreateShader gl_VERTEX_SHADER
@@ -292,9 +314,12 @@ main = do
   vertShader <- readFile "vertex.glsl"
   fragShader <- readFile "fragment.glsl"
   pid <- loadShaders vertShader fragShader
+  tbo <- loadTexture "uvtemplate.tga"
+  let textureName = "myTextureSampler"
+  tid <- withCString textureName $ \tnameptr -> glGetUniformLocation pid tnameptr
 
   -- Setup callbacks
-  GLFW.setWindowRefreshCallback win (Just $ drawScene vbos pid)
+  GLFW.setWindowRefreshCallback win (Just $ drawScene vbos pid tbo tid)
   GLFW.setFramebufferSizeCallback win (Just resizeScene)
   GLFW.setWindowCloseCallback win (Just shutdown)
   GLFW.setKeyCallback win (Just keyPressed)
@@ -302,4 +327,4 @@ main = do
   -- Run
   forever $ do
     GLFW.pollEvents
-    drawScene vbos pid win
+    drawScene vbos pid tbo tid win
