@@ -3,7 +3,7 @@ if exist('cache.mat', 'file')
   load('cache.mat', 'imgs', 'n');
 else
   img = double(imread('fluid_middle.png'))/255;
-  n = 5;
+  n = 4;
   imgs = hierarchical(img, n);
   save('cache.mat', 'imgs', 'n');
 end
@@ -14,7 +14,7 @@ for i = n:n
   figure;imshow(img,[0 100])
 end
 
-% Find curved in the filtered images
+% Find curves in the filtered images
 g = fspecial('gaussian', 9);
 [gx, gy] = gradient(g);
 [gxx, gxy] = gradient(gx);
@@ -22,8 +22,7 @@ g = fspecial('gaussian', 9);
 for i = n:n
   % calculate laplacian of the image
   laplacian = abs(del2(imgs(:,:,i)));
-  %[min(laplacian(:)) max(laplacian(:))]
-  %figure;imshow(laplacian,[min(laplacian(:)) max(laplacian(:))])
+  figure;imshow(laplacian,[min(laplacian(:)) max(laplacian(:))])
   
   % calculte curve normals
   dxx = conv2(laplacian, gxx, 'same');
@@ -56,6 +55,9 @@ for i = n:n
   e = edge(laplacian, 'canny');
   figure;imshow(e)
   
+  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  % Let's suppose all the above code is correct! Fix the following code!
+  
   % calculate candidate curve pixels
   selected = zeros(size(e));
   n1 = [cos(7*pi/8) ; sin(7*pi/8) ];
@@ -67,11 +69,11 @@ for i = n:n
       if e(x, y) == 0
         continue
       end
-     
-      %if laplacian(x,y) < 0.00001
-      %  continue
-      %end
-     
+      
+      if laplacian(x,y) < 0.1
+        continue
+      end
+      
       nt = [nx(x,y) ny(x,y)];
       if nt * n1 <= 0 && nt * n2 > 0
         xx1 = x + 1;
@@ -160,6 +162,6 @@ for i = n:n
       end
     end
   end
-  %figure;imshow(connected);
+  figure;imshow(connected);
   %figure;imshow(selected);
 end

@@ -6,11 +6,21 @@
 % Gaussian kernel method can give better normals.
 
 img = double(imread('circle.png'))/255;
+img = rgb2lab(img);
+L = img(:,:,1);
+sigma_s = 2;
+sigma_r = range(L(:))/10;
+n = 1;
+for i = 1:n
+  img = bilateral(img, sigma_s, sigma_r);
+  sigma_s = sigma_s * 2;
+  sigma_r = sigma_r / 2;
+end
 img = img(:,:,1);
 lap = abs(del2(img));
 
 % Calculate discrete second partial derivatives
-if 1
+if 0
   g = fspecial('gaussian', 9);
   [gx, gy] = gradient(g);
   [gxx, gxy] = gradient(gx);
