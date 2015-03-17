@@ -2,7 +2,7 @@
 if exist('cache.mat', 'file')
   load('cache.mat', 'imgs', 'n');
 else
-  img = double(imread('fluid_middle.png'))/255;
+  img = double(imread('shapes.png'))/255;
   n = 4;
   imgs = hierarchical(img, n);
   save('cache.mat', 'imgs', 'n');
@@ -11,7 +11,7 @@ end
 % Display filtered images
 for i = n:n
   img = imgs(:,:,i);
-  figure;imshow(img,[0 100])
+  figure('Name', 'Filtered Image');imshow(img,[0 100])
 end
 
 % Find curves in the filtered images
@@ -22,7 +22,8 @@ g = fspecial('gaussian', 9);
 for i = n:n
   % calculate laplacian of the image
   laplacian = abs(del2(imgs(:,:,i)));
-  figure;imshow(laplacian,[min(laplacian(:)) max(laplacian(:))])
+  %laplacian = del2(imgs(:,:,i));
+  figure('Name', 'Image Laplacian');imshow(laplacian,[min(laplacian(:)) max(laplacian(:))])
   
   % calculte curve normals
   dxx = conv2(laplacian, gxx, 'same');
@@ -49,11 +50,11 @@ for i = n:n
   n = zeros(size(laplacian,1), size(laplacian,2), 3);
   n(:,:,1) = (1-ny)/2;
   n(:,:,2) = (1+nx)/2;
-  figure;imshow(n)
+  figure('Name', 'Normal');imshow(n)
   
   % calculate laplacian edges
   e = edge(laplacian, 'canny');
-  figure;imshow(e)
+  figure('Name', 'Canny Edges of Laplacian');imshow(e)
   
   %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   % Let's suppose all the above code is correct! Fix the following code!
@@ -104,7 +105,7 @@ for i = n:n
       selected(x, y) = 1;
     end
   end
-  figure;imshow(selected)
+  figure('Name', 'Candidate Pixels');imshow(selected)
   
   % calculated conncected curve pixels
   s = size(selected);
@@ -162,6 +163,6 @@ for i = n:n
       end
     end
   end
-  figure;imshow(connected);
+  figure('Name', 'Connected pixels');imshow(connected);
   %figure;imshow(selected);
 end
