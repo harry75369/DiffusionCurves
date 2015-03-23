@@ -2,6 +2,7 @@
 #define __MAIN_WINDOW_HPP__
 
 #include <QMainWindow>
+#include <QKeyEvent>
 #include "GLWidget.hpp"
 
 namespace Ui {
@@ -18,6 +19,7 @@ public:
 
 protected slots:
   void do_actionAbout();
+  virtual void keyPressEvent(QKeyEvent *evt);
 
 private:
   Ui::MainWindow *m_ui;

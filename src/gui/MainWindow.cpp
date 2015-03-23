@@ -18,9 +18,16 @@ MainWindow::MainWindow(QWidget *parent) :
 MainWindow::~MainWindow()
 {
   delete m_ui;
+  delete m_glwidget;
 }
 
 void MainWindow::do_actionAbout()
 {
   QMessageBox::information(this, "About", "Author: Chaoya Li\nEmail: harry75369@gmail.com\nDate: July 2014\nQt version: " QT_VERSION_STR);
+}
+
+void MainWindow::keyPressEvent(QKeyEvent *evt) {
+  if ( evt->key() == Qt::Key_Escape ) {
+    this->close();
+  }
 }
