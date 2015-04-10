@@ -6,10 +6,11 @@
 GLWidget::GLWidget(Ui::MainWindow *ui, QWidget *parent)
   //: QGLViewer(parent),
   : QGLWidget(parent),
-    m_ui(ui),
+    m_ui(ui), m_width(800), m_height(600),
     m_program(this),
     m_vertices{-1,-1,-1,1,1,-1,1,1},
-    m_uvcoords{0,0,0,1,1,0,1,1}
+    m_uvcoords{0,0,0,1,1,0,1,1},
+    m_time(0)
 {
 }
 
@@ -75,6 +76,16 @@ void GLWidget::initializeGL()
       }
     }
   }
+  // Send uniform
+  {
+    GLuint pid = m_program.programId();
+    m_resolutionUniLoc = glGetUniformLocation(pid, "iResolution");
+    m_timeUniLoc = glGetUniformLocation(pid, "iGlobalTime");
+
+    GLfloat resolution[] = {(GLfloat)m_width, (GLfloat)m_height, 0};
+    glUniform1f(m_timeUniLoc, m_time);
+    glUniform3fv(m_resolutionUniLoc, 1, resolution);
+  }
 
   // Init buffer data and config
   glBufferData(GL_ARRAY_BUFFER, sizeof(m_vertices), NULL, GL_STATIC_DRAW);
@@ -88,11 +99,22 @@ void GLWidget::initializeGL()
 
 void GLWidget::resizeGL(int w, int h) {
   glViewport(0, 0, (GLint)w, (GLint)h);
+  m_width = w;
+  m_height = h;
 }
 
 //void GLWidget::draw()
 void GLWidget::paintGL()
 {
+  m_time += 0.1f;
+  INFO("m_time=%.3f", m_time);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+  {
+    GLfloat resolution[] = {(GLfloat)m_width, (GLfloat)m_height, 0};
+    glUniform1f(m_timeUniLoc, m_time);
+    glUniform3fv(m_resolutionUniLoc, 1, resolution);
+  }
   glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  update();
 }

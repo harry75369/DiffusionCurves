@@ -29,6 +29,8 @@ protected: // GL functions
 
 private: // UI related
   Ui::MainWindow *m_ui;
+  int m_width;
+  int m_height;
 
 private: // GL related
   GLuint m_vao;
@@ -38,11 +40,14 @@ private: // GL related
     m_uvcoordLoc
   };
   QOpenGLShaderProgram m_program;
+  GLuint m_resolutionUniLoc;
+  GLuint m_timeUniLoc;
 
 private: // Some data
   const static int NV = 4;
   GLfloat m_vertices[2*NV];
   GLfloat m_uvcoords[2*NV];
+  GLfloat m_time;
 };
 
 #endif //__GL_WIDGET_HPP__
