@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns, FlexibleContexts #-}
 
 module Curves (
     Curve(..)
@@ -175,7 +175,7 @@ boundaryColorDerivatives segs difcolors = do
                         ((s1, _), (e1, _)) = ssegs V.! (truncate j)
                         m0 = (s0 + e0) / 2
                         vec = e1 - s1
-                     in dot (vec / (magnitude vec :+ 0)) (m0 - s1)
+                     in dot (vec / (magnitude vec :+ 0)) (s1 - m0)
       -- matrixT = (n><n) [f i j | i <- range n, j <- range n]
       matrixT = build (n, n) f :: Matrix Double
         where
@@ -209,7 +209,7 @@ boundaryColorDerivatives segs difcolors = do
       vectorCs =
         let getComponent = [\(Color r g b) -> r, \(Color r g b) -> g, \(Color r g b) -> b]
          in [(n><1) $ map (extract.fst) difcolors | extract <- getComponent]
-      matrixZs = [(makeComplexMatrix $ matrixA - pi*(ident n)) <> v | v <- vectorCs]
+      matrixZs = [(makeComplexMatrix $ matrixA - 2*pi*(ident n)) <> v | v <- vectorCs]
       [Just vectorEr, Just vectorEg, Just vectorEb] = map (linearSolve $ makeComplexMatrix matrixB) matrixZs
       dercolors = [Color (vectorEr!i!0) (vectorEg!i!0) (vectorEb!i!0) | i <- range n]
    in zip dercolors $ map snd difcolors

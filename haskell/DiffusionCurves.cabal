@@ -18,7 +18,7 @@ cabal-version:       >=1.10
 executable DiffusionCurves
   main-is:             Main.hs
   -- other-modules:
-  other-extensions:    BangPatterns
+  other-extensions:    BangPatterns, FlexibleContexts
   build-depends:       base
                      , parsec
                      , hmatrix

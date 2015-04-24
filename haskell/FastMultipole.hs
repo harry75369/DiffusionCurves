@@ -1,3 +1,5 @@
+{-# LANGUAGE TypeFamilies #-}
+
 module FastMultipole (
 
     -- for debug
@@ -100,7 +102,7 @@ funA k zc segment = addValue3 (funN k zc segment) (funM k zc segment)
 
 --------------------------------------------------------------------------------
 --
--- T. Sun, P. Thamjaroenporn, and C. Zheng, "Fast Multipole Representation of 
+-- T. Sun, P. Thamjaroenporn, and C. Zheng, "Fast Multipole Representation of
 -- Diffusion Curves and Points", ACM Trans. Graph. SIGGRAPH 2014
 --
 --------------------------------------------------------------------------------
@@ -135,10 +137,10 @@ solve ds width height = do
         where offset :: Int -> Double
               offset i = fromIntegral i + 0.5 :: Double
 
-  -- At the finest level (maxLevel), discretize each diffusion curve into 
+  -- At the finest level (maxLevel), discretize each diffusion curve into
   -- segments so that every segment is wholy contained in a cell.
   --
-  -- For each segment, calculate the missing info, e.g. boundary color 
+  -- For each segment, calculate the missing info, e.g. boundary color
   -- derivative (using BEM solver) and normal.
   let doDiscretization d = discretizeCurve d nx ny cellWidth cellHeight
   segments <- mapM (return.doDiscretization) ds >>= return.concat
@@ -150,7 +152,7 @@ solve ds width height = do
   H.disp 0 $ drawSegments
   printf "Total number of segments: %d\n" (P.length segments)
 
-  -- And then for each cell, find all the contained segments, calculate the 
+  -- And then for each cell, find all the contained segments, calculate the
   -- moments, up to maxOrder's order.
   let emptyTable = HM.empty :: CellTable
       initTable :: CellTable -> Index -> IO CellTable
@@ -252,7 +254,7 @@ solve ds width height = do
             ch = chAtLevel level
             indices = [(i,j) | i <- [0..nx-1], j <- [0..ny-1]]
 
-        -- For each cell, translate the moments of proper cells to its 
+        -- For each cell, translate the moments of proper cells to its
         -- local coefficients using M2L formula
         forM_ indices $ \i -> do
           let pIndices = findProperIndices i indices
@@ -280,7 +282,7 @@ solve ds width height = do
             pch = cwAtLevel $ level + 1
             indices = [(i,j) | i <- [0..nx-1], j <- [0..ny-1]]
 
-        -- For each cell in parent, translate child's local coefficients 
+        -- For each cell in parent, translate child's local coefficients
         -- to it using L2L formula
         forM_ indices $ \i -> do
           let j = toChildIndex i
